@@ -41,7 +41,7 @@ function Bay({
     <section
       ref={ref}
       aria-label={COLUMN_LABEL[column]}
-      className={`flex min-w-[210px] max-w-[360px] flex-1 flex-col rounded-md bg-bay ${divider ? 'ml-3' : ''} ${
+      className={`flex min-w-[188px] max-w-[360px] flex-1 flex-col rounded-md bg-bay ${divider ? 'ml-3' : ''} ${
         isDropTarget ? 'outline-2 outline-offset-[-2px]' : ''
       }`}
       style={isDropTarget ? { outlineColor: COLUMN_COLOR[column], outlineStyle: 'solid' } : undefined}

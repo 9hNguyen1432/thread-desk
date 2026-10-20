@@ -1,6 +1,7 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
+import type { AgentInfo } from './live/agents.js';
 import type { LiveStatus, OpenOptions, Tab, TerminalAdapter } from './terminal/types.js';
 
 interface DemoSession {
@@ -160,4 +161,19 @@ export class DemoAdapter implements TerminalAdapter {
   }
 
   async setBadge(): Promise<void> {}
+
+  /** What `claude agents --json` would report for the open demo tabs. */
+  async agents(): Promise<AgentInfo[]> {
+    return this.tabs.map((t, i) => ({
+      sessionId: t.sessionId,
+      pid: 100_000 + i,
+      kind: 'interactive',
+      status: t.status === 'running' ? 'busy' : 'idle',
+      state: null,
+      waitingFor: null,
+      name: t.title,
+      cwd: t.cwd,
+      startedAt: null,
+    }));
+  }
 }

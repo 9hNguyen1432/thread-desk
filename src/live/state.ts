@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { badgeFor, type HookState, type Lifecycle } from '../board.js';
 import type { Tab, TerminalAdapter } from '../terminal/types.js';
-import { fetchAgents, type AgentInfo } from './agents.js';
+import type { AgentInfo } from './agents.js';
 
 export interface LiveSnapshot {
   agents: Map<string, AgentInfo>;
@@ -12,6 +12,8 @@ export interface LiveSnapshot {
   errors: string[];
   at: number;
 }
+
+export type AgentSource = () => Promise<AgentInfo[]>;
 
 export type LifecycleLookup = (sessionId: string) => { lifecycle: Lifecycle; note: string | null };
 
@@ -39,7 +41,7 @@ export class LiveState extends EventEmitter<{ change: [] }> {
   private readonly appliedBadges = new Map<string, string>();
 
   constructor(
-    private readonly claudeBin: string | null,
+    private readonly agentSource: AgentSource,
     readonly terminal: TerminalAdapter,
     private readonly intervalMs: number,
     private readonly lookupLifecycle: LifecycleLookup,
@@ -71,7 +73,7 @@ export class LiveState extends EventEmitter<{ change: [] }> {
 
   private async doRefresh(): Promise<void> {
     const errors: string[] = [];
-    const agents = await (this.claudeBin ? fetchAgents(this.claudeBin) : Promise.resolve([])).catch((e: Error) => {
+    const agents = await this.agentSource().catch((e: Error) => {
       errors.push(`claude agents: ${e.message}`);
       return [] as AgentInfo[];
     });

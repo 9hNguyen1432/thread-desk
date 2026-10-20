@@ -9,7 +9,8 @@ import { buildDigest, type Digest } from './digest.js';
 import { draftHandoff, handoffTargets, type HandoffTarget } from './handoff.js';
 import { hookEffect, hooksInstalled, type HookPayload } from './hooks.js';
 import { ticketRegex } from './links.js';
-import { LiveState } from './live/state.js';
+import { fetchAgents } from './live/agents.js';
+import { LiveState, type AgentSource } from './live/state.js';
 import { generateRecap, buildRecapInput, RecapQueue } from './recap.js';
 import { RemoteStatus, type RemoteRef } from './remote/status.js';
 import { jiraComment, jiraCreds, parseSlackKey, slackReply, slackToken } from './remote/trackers.js';
@@ -59,7 +60,7 @@ export class ThreadDesk {
     public config: Config,
     readonly dataDir: string,
     terminal: TerminalAdapter,
-    opts: { agents: boolean } = { agents: true },
+    agentSource?: AgentSource,
   ) {
     this.store = new Store(db);
     this.searcher = new Searcher(db);
@@ -72,7 +73,7 @@ export class ThreadDesk {
         }
       },
     });
-    this.live = new LiveState(opts.agents ? config.claudeBin : null, terminal, config.pollIntervalMs, (id) => this.store.lifecycleOf(id));
+    this.live = new LiveState(agentSource ?? (() => fetchAgents(config.claudeBin)), terminal, config.pollIntervalMs, (id) => this.store.lifecycleOf(id));
     this.live.on('change', () => this.boardChanged());
     this.remote = new RemoteStatus(db, config, () => this.boardChanged());
     this.recaps = new RecapQueue(

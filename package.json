@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "description": "A local Kanban board for AI coding agents running in cmux: see, find, resume and clean up your Claude Code threads.",
   "license": "MIT",
+  "author": "Chinh Nguyen",
+  "homepage": "https://github.com/9hNguyen1432/thread-desk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/9hNguyen1432/thread-desk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/9hNguyen1432/thread-desk/issues"
+  },
   "type": "module",
   "bin": {
     "thread-desk": "dist/server/cli.js"

@@ -12,6 +12,7 @@ import { createServer } from './server.js';
 import { CmuxAdapter } from './terminal/cmux.js';
 import { NoneAdapter } from './terminal/none.js';
 import type { TerminalAdapter } from './terminal/types.js';
+import type { AgentSource } from './live/state.js';
 
 const HELP = `thread-desk: a local Kanban board for your Claude Code sessions
 
@@ -89,17 +90,20 @@ async function main(): Promise<void> {
   if (command) throw new Error(`Unknown command: ${command}\n\n${HELP}`);
 
   let terminal: TerminalAdapter;
+  let agentSource: AgentSource | undefined;
   if (values.demo) {
     const demo = createDemoClaudeDir(dir);
     config.claudeDir = demo.claudeDir;
     if (config.links.ticketKeys.length === 0) config.links.ticketKeys = ['DEMO'];
-    terminal = new DemoAdapter(demo.tabs);
+    const demoTerminal = new DemoAdapter(demo.tabs);
+    terminal = demoTerminal;
+    agentSource = () => demoTerminal.agents();
   } else {
     terminal = await pickTerminal(config);
   }
 
   const db = openDb(dir);
-  const app = new ThreadDesk(db, config, dir, terminal, { agents: !values.demo });
+  const app = new ThreadDesk(db, config, dir, terminal, agentSource);
   const server = createServer(app, { port: config.port, token, hookSecret });
 
   const httpServer = serve({ fetch: server.fetch, port: config.port, hostname: '127.0.0.1' }, () => {
