@@ -1,5 +1,7 @@
 # Thread Desk
 
+[![npm](https://img.shields.io/npm/v/thread-desk)](https://www.npmjs.com/package/thread-desk) [![CI](https://github.com/9hNguyen1432/thread-desk/actions/workflows/ci.yml/badge.svg)](https://github.com/9hNguyen1432/thread-desk/actions/workflows/ci.yml) [![license](https://img.shields.io/npm/l/thread-desk)](https://github.com/9hNguyen1432/thread-desk/blob/main/LICENSE)
+
 **A mission-control board for AI coding agents running in [cmux](https://cmux.com).**
 Today it supports Claude Code; Codex and other agents are next.
 
@@ -20,7 +22,7 @@ Everything runs on your machine at `http://127.0.0.1:4545`. Nothing is uploaded.
 | **Agent** | Claude Code 2.x | Reads `~/.claude/projects`, live status from `claude agents --json` |
 | **Terminal** | cmux on macOS (full) | Tab status, memory per tab, jump, close, resume in a new tab, sidebar badges |
 | | Any other terminal (basic) | Board, status, search and summaries work; resume by copying the command |
-| **OS** | macOS | cmux is macOS-only. Linux should work without cmux but is not tested yet |
+| **OS** | macOS (full), Linux (basic) | cmux is macOS-only, so on Linux you get the board, status and search without tab control. CI runs the tests and a demo smoke test on both |
 | **Trackers** | GitHub (via `gh`), Jira Cloud, Linear | Status of PRs, issues and tickets linked to a thread |
 | **Chat** | Slack | Read a thread to start from it; post a reviewed update back |
 
@@ -224,8 +226,8 @@ agent adapter.
 
 - **More agents:** OpenAI Codex CLI first, then OpenCode and Gemini CLI. cmux already tracks these
   agents in its sidebar, so status works the same way; what is missing is reading their session history.
-- **More terminals:** tmux, WezTerm, Ghostty and iTerm2 adapters for people not on cmux, and Linux
-  support.
+- **More terminals:** tmux, WezTerm, Ghostty and iTerm2 adapters for people not on cmux, which would also
+  bring tab control to Linux.
 - **Smarter cleanup:** close tabs automatically when their PR merges, if you opt in.
 - **Team view:** share which threads touch which tickets with teammates, without sharing transcripts.
 
