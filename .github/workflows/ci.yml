@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: [22, 24]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run check:secrets
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Smoke test the packed CLI
+        run: |
+          npm pack
+          mkdir -p /tmp/td-smoke && tar -xzf thread-desk-*.tgz -C /tmp/td-smoke
+          cp -r node_modules /tmp/td-smoke/package/
+          export THREAD_DESK_HOME=/tmp/td-home
+          node /tmp/td-smoke/package/dist/server/cli.js --demo --no-open --port 4599 &
+          for i in $(seq 1 30); do sleep 1; [ -f /tmp/td-home/demo/token ] && curl -sf -H "x-thread-desk-token: $(cat /tmp/td-home/demo/token)" http://127.0.0.1:4599/api/health && break; done
+          curl -sf -H "x-thread-desk-token: $(cat /tmp/td-home/demo/token)" http://127.0.0.1:4599/api/board | grep -q '"cards"'

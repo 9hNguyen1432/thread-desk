@@ -1,0 +1,139 @@
+@import 'tailwindcss';
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-sans-condensed/500.css';
+@import '@fontsource/ibm-plex-sans-condensed/600.css';
+@import '@fontsource/ibm-plex-sans-condensed/700.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+:root {
+  --bg: #e6eaf0;
+  --bay: #dce2ea;
+  --strip: #fbfcfe;
+  --ink: #1c2430;
+  --muted: #5b6676;
+  --rule: #c5cdd8;
+  --rule-strong: #9aa6b6;
+  --focus: #2563eb;
+  --st-running: #2563eb;
+  --st-needs: #d97706;
+  --st-idle: #94a3b8;
+  --st-paused: #cbd5e1;
+  --st-waiting: #7c3aed;
+  --st-done: #15803d;
+  --st-archived: #a8a29e;
+  --danger: #b91c1c;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #121820;
+    --bay: #18202b;
+    --strip: #1f2935;
+    --ink: #e3e8ef;
+    --muted: #8c98a8;
+    --rule: #2c3744;
+    --rule-strong: #46556a;
+    --st-paused: #3b4757;
+    --st-idle: #64748b;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #121820;
+  --bay: #18202b;
+  --strip: #1f2935;
+  --ink: #e3e8ef;
+  --muted: #8c98a8;
+  --rule: #2c3744;
+  --rule-strong: #46556a;
+  --st-paused: #3b4757;
+  --st-idle: #64748b;
+  color-scheme: dark;
+}
+
+@theme {
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-cond: 'IBM Plex Sans Condensed', 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --color-bg: var(--bg);
+  --color-bay: var(--bay);
+  --color-strip: var(--strip);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-running: var(--st-running);
+  --color-needs: var(--st-needs);
+  --color-idle: var(--st-idle);
+  --color-paused: var(--st-paused);
+  --color-waiting: var(--st-waiting);
+  --color-done: var(--st-done);
+  --color-archived: var(--st-archived);
+  --color-danger: var(--danger);
+}
+
+@layer base {
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+}
+
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule-strong) transparent;
+}
+
+@keyframes arrive {
+  from {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--st-needs) 45%, transparent);
+  }
+  to {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.strip-arrive {
+  animation: arrive 1.6s ease-out 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .strip-arrive {
+    animation: none;
+  }
+}
+
+[cmdk-item][data-selected='true'] {
+  background: var(--bay);
+}
