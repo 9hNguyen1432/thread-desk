@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useActions } from '../actions';
 import { api } from '../api';
 import { COLUMN_COLOR, COLUMN_LABEL, ago, bytes } from '../format';
-import type { Card, Lifecycle, LinkView, Message, Status } from '../types';
+import type { Card, Lifecycle, LinkView, Message, Status, TodosResponse } from '../types';
 import { HandoffModal } from './HandoffModal';
 import { Button, LinkChip } from './ui';
 
@@ -36,6 +36,69 @@ function MessageItem({ m }: { m: Message }) {
         </button>
       )}
     </li>
+  );
+}
+
+function TodoSection({ card, onChanged }: { card: Card; onChanged: () => void }) {
+  const actions = useActions();
+  const [open, setOpen] = useState<{ id: number; title: string }[] | null>(null);
+  const [choice, setChoice] = useState('');
+
+  const loadTodos = async () => {
+    const r = await api.get<TodosResponse>('/todos?day=today');
+    const candidates = r.todos.filter((t) => (t.status === 'todo' || t.status === 'wip') && !card.todos.some((c) => c.id === t.id));
+    setOpen(candidates.map((t) => ({ id: t.id, title: t.title })));
+    setChoice(candidates[0] ? String(candidates[0].id) : '');
+  };
+
+  const add = async () => {
+    try {
+      await api.post(`/todos/${choice}/link`, { sessionId: card.id });
+      actions.toast('Added to todo');
+      setOpen(null);
+      onChanged();
+    } catch (e) {
+      actions.toast((e as Error).message, 'error');
+    }
+  };
+
+  return (
+    <section className="mt-5">
+      <h3 className="font-cond text-[15px] font-semibold">Todo</h3>
+      {card.todos.length === 0 && open === null && <p className="mt-1 text-[13px] text-muted">Not part of any open todo.</p>}
+      <ul className="mt-1 flex flex-col gap-1 text-[13px]">
+        {card.todos.map((t) => (
+          <li key={t.id} className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 truncate">{t.title}</span>
+            <button
+              type="button"
+              className="text-[12px] text-muted hover:text-danger"
+              onClick={() => void api.post(`/todos/${t.id}/unlink`, { sessionId: card.id }).then(onChanged)}
+            >
+              Unlink
+            </button>
+          </li>
+        ))}
+      </ul>
+      {open === null ? (
+        <button type="button" className="mt-1 text-[12px] underline" onClick={() => void loadTodos()}>
+          Add to a todo
+        </button>
+      ) : open.length === 0 ? (
+        <p className="mt-1 text-[13px] text-muted">No other open todos today. Add one in the Today tab.</p>
+      ) : (
+        <div className="mt-1.5 flex gap-2">
+          <select aria-label="Todo" className="min-w-0 flex-1 rounded border border-rule-strong bg-strip px-2 py-1 text-[13px]" value={choice} onChange={(e) => setChoice(e.target.value)}>
+            {open.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.title}
+              </option>
+            ))}
+          </select>
+          <Button onClick={() => void add()}>Add</Button>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -196,6 +259,8 @@ export function Drawer({ id, status, version }: { id: string; status: Status | n
             </p>
           )}
         </section>
+
+        <TodoSection card={card} onChanged={() => void load()} />
 
         <section className="mt-5">
           <h3 className="font-cond text-[15px] font-semibold">Links</h3>

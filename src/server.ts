@@ -7,6 +7,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { HttpError, type SettingsPatch, type ThreadDesk } from './app.js';
 import { LIFECYCLES, type Lifecycle } from './board.js';
 import { SECRET_HEADER, type HookPayload } from './hooks.js';
+import { todoRoutes } from './todos/routes.js';
 
 const TOKEN_HEADER = 'x-thread-desk-token';
 
@@ -172,7 +173,8 @@ export function createServer(app: ThreadDesk, opts: ServerOptions): Hono {
     return c.json({ draft: await app.startDraft(String(input ?? '')), projects: app.store.projects() });
   });
   api.post('/start/launch', async (c) => {
-    const req = await body<{ cwd: string; title: string; prompt: string; worktree: boolean; branch: string; key: string | null }>(c);
+    const req = await body<{ cwd: string; title: string; prompt: string; worktree: boolean; branch: string; key: string | null; todoId?: number }>(c);
+    const todoId = Number.isInteger(req.todoId) && app.todos.store.get(req.todoId!) ? req.todoId : undefined;
     return c.json(
       await app.launch({
         cwd: String(req.cwd ?? ''),
@@ -181,7 +183,7 @@ export function createServer(app: ThreadDesk, opts: ServerOptions): Hono {
         worktree: Boolean(req.worktree),
         branch: String(req.branch ?? ''),
         key: req.key ? String(req.key) : null,
-      }),
+      }, todoId),
     );
   });
 
@@ -212,6 +214,7 @@ export function createServer(app: ThreadDesk, opts: ServerOptions): Hono {
     }),
   );
 
+  api.route('/', todoRoutes(app));
   web.route('/api', api);
 
   if (existsSync(webDir)) {

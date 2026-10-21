@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 export type DB = Database.Database;
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 const SCHEMA = `
 create table if not exists sessions (
@@ -87,6 +87,42 @@ create table if not exists recaps (
   message_count integer not null
 );
 
+create table if not exists todos (
+  id integer primary key,
+  title text not null,
+  notes text,
+  reported_day text not null,
+  status text not null default 'todo',
+  closed_day text,
+  sort real not null,
+  created_at integer not null,
+  updated_at integer not null
+);
+create index if not exists todos_status on todos(status, reported_day);
+
+create table if not exists todo_links (
+  todo_id integer not null references todos(id) on delete cascade,
+  session_id text not null,
+  origin text not null,
+  created_at integer not null,
+  primary key (todo_id, session_id)
+);
+create index if not exists todo_links_session on todo_links(session_id);
+
+create table if not exists todo_rejections (
+  todo_id integer not null references todos(id) on delete cascade,
+  session_id text not null,
+  primary key (todo_id, session_id)
+);
+
+create table if not exists todo_events (
+  todo_id integer not null references todos(id) on delete cascade,
+  day text not null,
+  kind text not null,
+  at integer not null
+);
+create index if not exists todo_events_day on todo_events(day);
+
 create table if not exists remote_status (
   kind text not null,
   key text not null,
@@ -103,6 +139,7 @@ export function openDb(dir: string): DB {
   const db = new Database(join(dir, 'index.db'));
   db.pragma('journal_mode = WAL');
   db.pragma('synchronous = NORMAL');
+  db.pragma('foreign_keys = ON');
   const version = db.pragma('user_version', { simple: true }) as number;
   if (version !== SCHEMA_VERSION) {
     if (version !== 0) dropDerived(db);

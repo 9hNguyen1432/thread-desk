@@ -38,6 +38,12 @@ export interface Config {
     branch: string;
     prompt: string;
   };
+  day: {
+    /** Local hour at which a new day begins, so late-night work counts for the day before. */
+    startHour: number;
+    /** Gaps between messages longer than this are not counted as working time. */
+    idleGapMinutes: number;
+  };
 }
 
 export const DEFAULT_CONFIG: Config = {
@@ -58,6 +64,7 @@ export const DEFAULT_CONFIG: Config = {
     branch: 'feat/{key}-{slug}',
     prompt: 'Work on {key}: {title}\n\n{url}\n\n{description}',
   },
+  day: { startHour: 4, idleGapMinutes: 20 },
 };
 
 export function dataDir(override?: string): string {

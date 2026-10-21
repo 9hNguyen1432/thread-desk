@@ -52,6 +52,7 @@ export interface Card {
   agent: { kind: string; pid: number | null; status: string | null; state: string | null; waitingFor: string | null } | null;
   tab: TabInfo | null;
   closeBlock: string | null;
+  todos: { id: number; title: string }[];
   links: LinkView[];
   mentioned: LinkView[];
   primaryTicket: string | null;
@@ -146,4 +147,64 @@ export interface Message {
   role: string;
   ts: number | null;
   text: string;
+}
+
+export type TodoStatus = 'todo' | 'wip' | 'done' | 'dropped';
+
+export interface TodoThread {
+  id: string;
+  title: string;
+  column: Column;
+  lifecycle: Lifecycle;
+  projectName: string | null;
+  origin: 'auto' | 'accepted' | 'manual' | 'started';
+  minutes: number;
+}
+
+export interface TodoView {
+  id: number;
+  title: string;
+  notes: string | null;
+  status: TodoStatus;
+  reportedDay: string;
+  closedDay: string | null;
+  carriedDays: number;
+  keys: { kind: LinkKind; key: string; url: string | null }[];
+  threads: TodoThread[];
+  minutes: number;
+  suggestions: { sessionId: string; title: string; projectName: string | null; reason: string }[];
+  doneHint: string | null;
+}
+
+export interface TodosResponse {
+  day: string;
+  today: string;
+  todos: TodoView[];
+}
+
+export interface CaptureLine {
+  todoId: number | null;
+  title: string;
+  status: 'wip' | 'done' | 'dropped' | 'unplanned';
+  reportedDay: string | null;
+  minutes: number;
+  projects: string[];
+  threads: { id: string; title: string; minutes: number }[];
+}
+
+export interface Capture {
+  day: string;
+  lines: CaptureLine[];
+  totalMinutes: number;
+  projects: { name: string; minutes: number }[];
+  markdown: string;
+  csv: string;
+}
+
+export interface WeekSummary {
+  start: string;
+  days: { day: string; totalMinutes: number; done: number; wip: number; unplanned: number }[];
+  projects: { name: string; minutes: number }[];
+  totalMinutes: number;
+  markdown: string;
 }

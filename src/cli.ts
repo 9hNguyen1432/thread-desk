@@ -6,7 +6,7 @@ import open from 'open';
 import { ThreadDesk } from './app.js';
 import { dataDir as resolveDataDir, ensureDataDir, loadConfig, readOrCreateSecret, type Config } from './config.js';
 import { openDb } from './db.js';
-import { DemoAdapter, createDemoClaudeDir } from './demo.js';
+import { DemoAdapter, createDemoClaudeDir, seedDemoTodos } from './demo.js';
 import { hooksInstalled, installHooks, uninstallHooks } from './hooks.js';
 import { createServer } from './server.js';
 import { CmuxAdapter } from './terminal/cmux.js';
@@ -120,6 +120,7 @@ async function main(): Promise<void> {
   process.on('SIGTERM', () => void shutdown());
 
   await app.start();
+  if (values.demo) seedDemoTodos(app);
 }
 
 main().catch((e: Error) => {

@@ -46,6 +46,13 @@ export function Strip({ card, arrived, now }: { card: Card; arrived: boolean; no
         </p>
       )}
 
+      {card.todos.length > 0 && (
+        <p className="mt-1.5 truncate text-[12px] text-muted" title={card.todos.map((t) => t.title).join('\n')}>
+          For: <span className="font-medium text-ink">{card.todos[0]!.title}</span>
+          {card.todos.length > 1 ? ` +${card.todos.length - 1}` : ''}
+        </p>
+      )}
+
       {chips.length > 0 && (
         <div className="mt-1.5 flex flex-wrap gap-1">
           {chips.map((l) => (

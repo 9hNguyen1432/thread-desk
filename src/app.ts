@@ -15,10 +15,12 @@ import { generateRecap, buildRecapInput, RecapQueue } from './recap.js';
 import { RemoteStatus, type RemoteRef } from './remote/status.js';
 import { jiraComment, jiraCreds, parseSlackKey, slackReply, slackToken } from './remote/trackers.js';
 import { Searcher } from './search.js';
-import { draftStart, prepareLaunch, type LaunchRequest, type StartDraft } from './start.js';
+import { branchName as draftBranch, draftStart, prepareLaunch, type LaunchRequest, type StartDraft } from './start.js';
 import { Store, type Card } from './store.js';
 import type { TerminalAdapter } from './terminal/types.js';
 import { Indexer } from './transcript/indexer.js';
+import { TodoService } from './todos/service.js';
+import { todoKeys } from './todos/matching.js';
 
 export type BusEvents = {
   board: [];
@@ -51,6 +53,7 @@ export class ThreadDesk {
   readonly remote: RemoteStatus;
   readonly searcher: Searcher;
   readonly recaps: RecapQueue;
+  readonly todos: TodoService;
   indexing = { running: false, done: 0, total: 0 };
   private reindexPending = false;
   private boardTimer: NodeJS.Timeout | null = null;
@@ -76,6 +79,14 @@ export class ThreadDesk {
     this.live = new LiveState(agentSource ?? (() => fetchAgents(config.claudeBin)), terminal, config.pollIntervalMs, (id) => this.store.lifecycleOf(id));
     this.live.on('change', () => this.boardChanged());
     this.remote = new RemoteStatus(db, config, () => this.boardChanged());
+    this.todos = new TodoService({
+      db,
+      config: () => this.config,
+      searcher: this.searcher,
+      ticketRe: () => this.ticketRe,
+      cards: () => this.cards({ includeContinued: true }),
+      changed: () => this.boardChanged(),
+    });
     this.recaps = new RecapQueue(
       (id) => this.runRecap(id),
       () => this.config.recap.dailyCap,
@@ -111,6 +122,7 @@ export class ThreadDesk {
 
   private onSessionsChanged(ids: string[]): void {
     this.boardChanged();
+    if (!this.indexing.running) this.todos.onSessionsChanged(ids);
     if (!this.config.recap.enabled || this.indexing.running) return;
     for (const id of ids) {
       const s = this.store.session(id);
@@ -126,11 +138,16 @@ export class ThreadDesk {
   }
 
   cards(opts: { project?: string; includeContinued?: boolean } = {}): Card[] {
-    return this.store.cards(opts, this.live.snapshot, this.live.hooks);
+    const cards = this.store.cards(opts, this.live.snapshot, this.live.hooks);
+    const todos = this.todos.todosBySession();
+    for (const card of cards) card.todos = todos.get(card.id) ?? [];
+    return cards;
   }
 
   card(id: string): Card | null {
-    return this.store.card(id, this.live.snapshot, this.live.hooks);
+    const card = this.store.card(id, this.live.snapshot, this.live.hooks);
+    if (card) card.todos = this.todos.todosBySession().get(card.id) ?? [];
+    return card;
   }
 
   requireCard(id: string): Card {
@@ -320,7 +337,27 @@ export class ThreadDesk {
     return draftStart(input, this.config, this.remote);
   }
 
-  async launch(req: LaunchRequest): Promise<{ dir: string; command: string; opened: boolean }> {
+  /** A start-thread draft prefilled from a todo, so the new thread links back to it on its own. */
+  async todoStartDraft(todoId: number): Promise<StartDraft> {
+    const todo = this.todos.store.get(todoId);
+    if (!todo) throw new HttpError(404, 'Todo not found');
+    const anchor = todoKeys(todo, this.ticketRe).find((k) => k.kind === 'ticket' || k.kind === 'issue' || k.kind === 'slack');
+    const base = anchor ? await draftStart(anchor.url ?? anchor.key, this.config, this.remote) : null;
+    const prompt = [todo.title, todo.notes, base?.description && base.description !== todo.notes ? base.description : null]
+      .filter((p): p is string => Boolean(p && p.trim()))
+      .join('\n\n');
+    return {
+      key: base?.key ?? null,
+      title: todo.title,
+      url: base?.url ?? null,
+      description: base?.description ?? '',
+      branch: base?.branch ?? draftBranch(this.config.start.branch, null, todo.title),
+      prompt,
+      warnings: base?.warnings ?? [],
+    };
+  }
+
+  async launch(req: LaunchRequest, todoId?: number): Promise<{ dir: string; command: string; opened: boolean }> {
     if (!req.title.trim() || !req.prompt.trim()) throw new HttpError(400, 'Title and prompt are required');
     let prepared;
     try {
@@ -328,6 +365,7 @@ export class ThreadDesk {
     } catch (e) {
       throw new HttpError(422, (e as Error).message);
     }
+    if (todoId !== undefined) this.todos.registerLaunch(todoId, prepared.dir, req.prompt);
     if (this.live.terminal.name === 'none') {
       return { ...prepared, command: `cd '${prepared.dir.replace(/'/g, `'\\''`)}' && ${prepared.command}`, opened: false };
     }

@@ -53,3 +53,23 @@ export function prLabel(key: string): string {
   const m = /^([^/]+)\/([^#]+)#(\d+)$/.exec(key);
   return m ? `${m[2]}#${m[3]}` : key;
 }
+
+export function minutes(m: number): string {
+  const r = Math.round(m);
+  if (r < 60) return `${r}m`;
+  const h = Math.floor(r / 60);
+  const rest = r % 60;
+  return rest ? `${h}h${String(rest).padStart(2, '0')}` : `${h}h`;
+}
+
+export function dayLabel(day: string, today?: string): string {
+  if (today && day === today) return 'Today';
+  const [y, m, d] = day.split('-').map(Number) as [number, number, number];
+  return new Date(y, m - 1, d, 12).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+export function shiftDay(day: string, n: number): string {
+  const [y, m, d] = day.split('-').map(Number) as [number, number, number];
+  const date = new Date(y, m - 1, d + n, 12);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}

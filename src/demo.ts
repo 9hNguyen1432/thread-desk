@@ -1,6 +1,7 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
+import type { ThreadDesk } from './app.js';
 import type { AgentInfo } from './live/agents.js';
 import type { LiveStatus, OpenOptions, Tab, TerminalAdapter } from './terminal/types.js';
 
@@ -117,6 +118,21 @@ export function createDemoClaudeDir(dataDir: string): { claudeDir: string; tabs:
     if (s.live) tabs.push({ sessionId: id, title: s.title, cwd: s.cwd, status: s.live.status, memoryBytes: s.live.memoryMb * 1e6 });
   }
   return { claudeDir: root, tabs };
+}
+
+/** Todos that show the Today view working: one linked by ticket, one waiting on a suggestion. */
+export function seedDemoTodos(app: ThreadDesk): void {
+  if (app.todos.store.open().length > 0) return;
+  const cards = app.cards({ includeContinued: true });
+  const byTitle = (t: string) => cards.find((c) => c.title.startsWith(t))?.id;
+  const crash = app.todos.create('Fix DEMO-87 login crash on Android 14\nReported by support, several users stuck at login.');
+  const crashThread = byTitle('Login crash');
+  if (crash && crashThread) app.todos.link(crash.id, crashThread, 'auto');
+  const limit = app.todos.create('Ship rate limiting for the public API (DEMO-101)');
+  const limitThread = byTitle('Add rate limiting');
+  if (limit && limitThread) app.todos.link(limit.id, limitThread, 'started');
+  app.todos.create('Ask infra about the Node 24 base image');
+  app.todos.create('Final onboarding copy for step 4 (DEMO-120)');
 }
 
 /** Pretends to be a terminal with a few open tabs so the demo shows live columns. */

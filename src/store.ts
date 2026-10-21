@@ -52,6 +52,8 @@ export interface Card {
   tab: { ref: string; windowRef: string; title: string; memoryBytes: number } | null;
   /** Why the tab cannot be closed from Thread Desk right now; null when closing is safe. */
   closeBlock: string | null;
+  /** Open todos this thread is linked to. */
+  todos: { id: number; title: string }[];
   links: LinkView[];
   mentioned: LinkView[];
   primaryTicket: string | null;
@@ -309,6 +311,7 @@ function toCard(row: Row, linkRows: LinkRow[], live: LiveSnapshot, hook: HookSta
       : null,
     tab: tab ? { ref: tab.ref, windowRef: tab.windowRef, title: tab.title, memoryBytes: tab.memoryBytes } : null,
     closeBlock: tab ? closeBlocker(agent, tab, status, live.errors) : null,
+    todos: [],
     links: primary,
     mentioned,
     primaryTicket: primaryTicket(primary),

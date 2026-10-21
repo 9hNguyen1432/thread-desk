@@ -4,10 +4,20 @@ import { api } from '../api';
 import type { StartDraft, Status } from '../types';
 import { Button, Modal } from './ui';
 
-export function StartModal({ status, onClose }: { status: Status | null; onClose: () => void }) {
+export function StartModal({
+  status,
+  onClose,
+  initialDraft,
+  todoId,
+}: {
+  status: Status | null;
+  onClose: () => void;
+  initialDraft?: StartDraft;
+  todoId?: number;
+}) {
   const actions = useActions();
   const [input, setInput] = useState('');
-  const [draft, setDraft] = useState<StartDraft | null>(null);
+  const [draft, setDraft] = useState<StartDraft | null>(initialDraft ?? null);
   const [projects, setProjects] = useState<{ project: string; name: string }[]>(status?.projects ?? []);
   const [cwd, setCwd] = useState(status?.projects[0]?.project ?? '');
   const [worktree, setWorktree] = useState(true);
@@ -39,6 +49,7 @@ export function StartModal({ status, onClose }: { status: Status | null; onClose
         worktree,
         branch: draft.branch,
         key: draft.key,
+        todoId,
       });
       if (r.opened) {
         actions.toast(`Started in ${r.dir}`);
@@ -56,7 +67,8 @@ export function StartModal({ status, onClose }: { status: Status | null; onClose
   const field = 'mt-1 w-full rounded border border-rule-strong bg-bg px-2.5 py-1.5 text-[13px]';
 
   return (
-    <Modal title="Start a thread" onClose={onClose} width="max-w-2xl">
+    <Modal title={todoId ? 'Start a thread for this todo' : 'Start a thread'} onClose={onClose} width="max-w-2xl">
+      {!initialDraft && (
       <form
         className="flex gap-2"
         onSubmit={(e) => {
@@ -75,6 +87,7 @@ export function StartModal({ status, onClose }: { status: Status | null; onClose
           {busy && !draft ? 'Loading…' : 'Prepare'}
         </Button>
       </form>
+      )}
 
       {draft && (
         <div className="mt-4 flex flex-col gap-3 text-[13px]">

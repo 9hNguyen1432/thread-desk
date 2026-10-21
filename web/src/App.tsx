@@ -6,6 +6,8 @@ import { Cleanup } from './components/Cleanup';
 import { DigestView } from './components/DigestView';
 import { Drawer } from './components/Drawer';
 import { Inbox } from './components/Inbox';
+import { Log } from './components/Log';
+import { Today } from './components/Today';
 import { Palette } from './components/Palette';
 import { Settings } from './components/Settings';
 import { StartModal } from './components/StartModal';
@@ -14,12 +16,14 @@ import { Button, Kbd, Modal } from './components/ui';
 import { bytes } from './format';
 import type { Board, Card, Lifecycle, OpenResult, Status, TabInfo } from './types';
 
-type View = 'board' | 'inbox' | 'cleanup' | 'tickets' | 'digest';
+type View = 'board' | 'today' | 'inbox' | 'cleanup' | 'tickets' | 'log' | 'digest';
 const VIEWS: { id: View; label: string }[] = [
   { id: 'board', label: 'Board' },
+  { id: 'today', label: 'Today' },
   { id: 'inbox', label: 'Inbox' },
   { id: 'cleanup', label: 'Cleanup' },
   { id: 'tickets', label: 'Tickets' },
+  { id: 'log', label: 'Log' },
   { id: 'digest', label: 'Digest' },
 ];
 
@@ -283,9 +287,11 @@ export function App() {
 
         <main className="min-h-0 flex-1 overflow-y-auto">
           {view === 'board' && <BoardView cards={cards} showArchived={showArchived} now={now} />}
+          {view === 'today' && <Today version={version} status={status} />}
           {view === 'inbox' && <Inbox version={version} />}
           {view === 'cleanup' && <Cleanup version={version} status={status} />}
           {view === 'tickets' && <Tickets version={version} status={status} onConfigure={() => setSettings(true)} />}
+          {view === 'log' && <Log version={version} />}
           {view === 'digest' && <DigestView version={version} />}
         </main>
       </div>
