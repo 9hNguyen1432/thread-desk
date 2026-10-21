@@ -177,3 +177,12 @@ describe('RecapQueue accounting', () => {
     expect(q.remainingToday).toBe(1);
   });
 });
+
+describe('run', () => {
+  it('survives a child that exits without reading its input', async () => {
+    const { run } = await import('../src/exec.js');
+    const big = 'x'.repeat(4 * 1024 * 1024);
+    await expect(run('sh', ['-c', 'exit 0'], { input: big })).resolves.toBeDefined();
+    await expect(run('sh', ['-c', 'exit 3'], { input: big })).rejects.toThrow();
+  });
+});

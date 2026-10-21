@@ -46,6 +46,9 @@ export function run(bin: string, args: string[], opts: RunOptions = {}): Promise
         resolve({ stdout, stderr });
       },
     );
+    // A child that exits (or is stopped) before reading stdin makes this write fail with EPIPE;
+    // the exit itself is reported through the callback, so the write error is not interesting.
+    child.stdin?.on('error', () => undefined);
     if (opts.input !== undefined) child.stdin?.end(opts.input);
   });
 }
