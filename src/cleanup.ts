@@ -13,6 +13,8 @@ export interface CleanupSuggestion {
   reasons: CleanupReason[];
   detail: string[];
   label: string | null;
+  /** Whether the label is your own pick; automatic ones can still change as the thread evolves. */
+  labelPicked: boolean;
 }
 
 /** A tab is only suggested when closing it cannot interrupt work in progress. */
@@ -61,6 +63,7 @@ export function suggestCleanup(cards: Card[], cfg: Config['cleanup'], now: numbe
       reasons,
       detail,
       label: card.label?.name || null,
+      labelPicked: card.label?.source === 'manual',
     });
   }
   return out.sort((a, b) => b.memoryBytes - a.memoryBytes);

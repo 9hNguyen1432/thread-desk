@@ -29,6 +29,20 @@ export function Cleanup({ version, status, label, cards }: { version: number; st
   // Only rows on screen count; a selection hidden by the label filter is never closed by accident.
   const chosen = useMemo(() => items.filter((i) => selected.has(i.sessionId)), [items, selected]);
   const total = chosen.reduce((sum, i) => sum + i.memoryBytes, 0);
+  const labelNames = status?.labels.names ?? [];
+
+  /** `value` is a label name, "" for "no label", or "auto" to go back to the automatic label. */
+  const setKind = async (ids: string[], value: string) => {
+    try {
+      for (const id of ids) await api.post(`/sessions/${id}/label`, { label: value === 'auto' ? null : value });
+      setItems((prev) =>
+        prev.map((i) => (ids.includes(i.sessionId) && value !== 'auto' ? { ...i, label: value || null, labelPicked: true } : i)),
+      );
+      if (ids.length > 1) actions.toast(`Set ${ids.length} threads to ${value === 'auto' ? 'automatic' : value || 'no label'}`);
+    } catch (e) {
+      actions.toast((e as Error).message, 'error');
+    }
+  };
 
   const askButton = status && (
     <Button onClick={() => setAsking(true)} title="Ask several threads the same question, then act on the answers once">
@@ -100,6 +114,24 @@ export function Cleanup({ version, status, label, cards }: { version: number; st
         </p>
         {askButton}
         <Button onClick={() => setSelected(new Set(items.map((i) => i.sessionId)))}>Select all</Button>
+        <select
+          aria-label="Set kind for selected"
+          className="rounded border border-rule-strong bg-strip px-2 py-1 text-[13px]"
+          value="-"
+          disabled={chosen.length === 0}
+          onChange={(e) => {
+            if (e.target.value !== '-') void setKind(chosen.map((i) => i.sessionId), e.target.value);
+          }}
+        >
+          <option value="-">Set kind for selected…</option>
+          {labelNames.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+          <option value="">No label</option>
+          <option value="auto">Automatic</option>
+        </select>
         <label className="flex items-center gap-1.5 text-[13px]">
           <input type="checkbox" checked={markDone} onChange={(e) => setMarkDone(e.target.checked)} />
           Also mark done
@@ -127,9 +159,10 @@ export function Cleanup({ version, status, label, cards }: { version: number; st
           <tr>
             <th className="w-8" />
             <th className="font-normal">Thread</th>
+            <th className="w-36 font-normal">Kind</th>
             <th className="font-normal">Why</th>
-            <th className="text-right font-normal">Memory</th>
-            <th className="text-right font-normal">Last activity</th>
+            <th className="text-right font-normal whitespace-nowrap">Memory</th>
+            <th className="pr-3 text-right font-normal whitespace-nowrap">Last activity</th>
           </tr>
         </thead>
         <tbody>
@@ -150,9 +183,26 @@ export function Cleanup({ version, status, label, cards }: { version: number; st
                 </button>
                 {item.note && <div className="text-[12px] text-muted italic">{item.note}</div>}
               </td>
+              <td className="py-2 pr-2" onClick={(e) => e.stopPropagation()}>
+                <select
+                  aria-label={`Kind of ${item.title}`}
+                  className={`w-full rounded border bg-strip px-1.5 py-0.5 text-[12.5px] ${item.labelPicked ? 'border-rule-strong font-medium' : 'border-rule text-muted'}`}
+                  title={item.labelPicked ? 'You picked this' : 'Picked automatically; choose one to keep it'}
+                  value={item.labelPicked ? (item.label ?? '') : 'auto'}
+                  onChange={(e) => void setKind([item.sessionId], e.target.value)}
+                >
+                  <option value="auto">{item.label && !item.labelPicked ? item.label : 'No kind yet'}</option>
+                  {labelNames.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                  <option value="">No label</option>
+                </select>
+              </td>
               <td className="py-2 text-muted">{item.detail.join(', ')}</td>
-              <td className="py-2 text-right tabular-nums">{bytes(item.memoryBytes)}</td>
-              <td className="rounded-r py-2 pr-3 text-right text-muted">{ago(item.lastAt)}</td>
+              <td className="py-2 text-right whitespace-nowrap tabular-nums">{bytes(item.memoryBytes)}</td>
+              <td className="rounded-r py-2 pr-3 text-right whitespace-nowrap text-muted">{ago(item.lastAt)}</td>
             </tr>
           ))}
         </tbody>

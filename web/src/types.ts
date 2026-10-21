@@ -106,6 +106,7 @@ export interface CleanupSuggestion {
   reasons: string[];
   detail: string[];
   label: string | null;
+  labelPicked: boolean;
 }
 
 export interface TicketGroup {
