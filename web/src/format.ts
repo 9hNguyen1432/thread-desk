@@ -73,3 +73,20 @@ export function shiftDay(day: string, n: number): string {
   const date = new Date(y, m - 1, d + n, 12);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
+
+const LABEL_PALETTE = ['var(--st-needs)', 'var(--st-running)', 'var(--danger)', 'var(--st-waiting)', 'var(--st-done)', 'var(--st-idle)'];
+const KNOWN_LABELS: Record<string, string> = {
+  Support: LABEL_PALETTE[0]!,
+  Feature: LABEL_PALETTE[1]!,
+  Bug: LABEL_PALETTE[2]!,
+  Investigation: LABEL_PALETTE[3]!,
+  Review: LABEL_PALETTE[4]!,
+  Ops: LABEL_PALETTE[5]!,
+};
+
+export function labelColor(name: string): string {
+  if (KNOWN_LABELS[name]) return KNOWN_LABELS[name]!;
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return LABEL_PALETTE[h % LABEL_PALETTE.length]!;
+}

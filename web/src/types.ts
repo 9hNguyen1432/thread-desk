@@ -39,6 +39,7 @@ export interface Card {
   lastAt: number | null;
   lastHumanAt: number | null;
   lastAssistantAt: number | null;
+  firstPrompt: string | null;
   lastPrompt: string | null;
   lastAssistant: string | null;
   humanCount: number;
@@ -53,6 +54,7 @@ export interface Card {
   tab: TabInfo | null;
   closeBlock: string | null;
   todos: { id: number; title: string }[];
+  label: { name: string; source: 'rule' | 'manual' | 'ai' } | null;
   links: LinkView[];
   mentioned: LinkView[];
   primaryTicket: string | null;
@@ -83,6 +85,8 @@ export interface Status {
   idleHours: number;
   recap: { enabled: boolean; remainingToday: number };
   jiraSite: string;
+  labels: { names: string[]; ai: boolean };
+  ask: { model: string; templates: { name: string; prompt: string }[] };
   projects: { project: string; name: string; count: number }[];
 }
 
@@ -101,6 +105,7 @@ export interface CleanupSuggestion {
   note: string | null;
   reasons: string[];
   detail: string[];
+  label: string | null;
 }
 
 export interface TicketGroup {
@@ -159,6 +164,7 @@ export interface TodoThread {
   projectName: string | null;
   origin: 'auto' | 'accepted' | 'manual' | 'started';
   minutes: number;
+  label: string | null;
 }
 
 export interface TodoView {

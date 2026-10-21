@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 export type DB = Database.Database;
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 /** Databases older than this need derived tables rebuilt instead of only new tables added. */
 const LAST_DESTRUCTIVE_VERSION = 2;
 
@@ -124,6 +124,34 @@ create table if not exists todo_events (
   at integer not null
 );
 create index if not exists todo_events_day on todo_events(day);
+
+create table if not exists thread_labels (
+  session_id text primary key,
+  label text not null,
+  source text not null,
+  updated_at integer not null
+);
+
+create table if not exists ask_batches (
+  id integer primary key,
+  prompt text not null,
+  model text not null,
+  status text not null,
+  created_at integer not null
+);
+
+create table if not exists ask_items (
+  batch_id integer not null references ask_batches(id) on delete cascade,
+  session_id text not null,
+  position integer not null,
+  status text not null,
+  answer text,
+  error text,
+  included integer not null default 1,
+  started_at integer,
+  finished_at integer,
+  primary key (batch_id, session_id)
+);
 
 create table if not exists remote_status (
   kind text not null,

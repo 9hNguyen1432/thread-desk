@@ -3,6 +3,7 @@ import { useActions } from '../actions';
 import { api } from '../api';
 import { dayLabel, minutes, shiftDay } from '../format';
 import type { Capture, SearchResult, StartDraft, Status, TodoView, TodosResponse } from '../types';
+import { ImportThreads } from './ImportThreads';
 import { StartModal } from './StartModal';
 import { TodoCard } from './TodoCard';
 import { Button, Empty, Modal } from './ui';
@@ -78,12 +79,11 @@ function WrapUp({ day, isToday, todos, onChanged, onClose }: { day: string; isTo
     onChanged();
   };
 
-  const addUnplanned = async (title: string, sessionId: string) => {
+  const addUnplanned = async (title: string, sessionId: string, status: 'done' | 'wip') => {
     try {
-      const { id } = await api.post<{ id: number }>('/todos', { text: title });
-      await api.post(`/todos/${id}/link`, { sessionId });
-      await api.patch(`/todos/${id}`, { status: 'done' });
-      actions.toast('Added to today as done');
+      const { ids } = await api.post<{ ids: number[] }>('/todos/import', { groups: [{ title, sessionIds: [sessionId] }] });
+      await api.patch(`/todos/${ids[0]}`, { status });
+      actions.toast(status === 'done' ? 'Added to today as done' : 'Added to today as in progress');
       onChanged();
     } catch (e) {
       actions.toast((e as Error).message, 'error');
@@ -114,7 +114,12 @@ function WrapUp({ day, isToday, todos, onChanged, onClose }: { day: string; isTo
               <li key={l.threads[0]!.id} className="flex items-center gap-2">
                 <span className="min-w-0 flex-1 truncate">{l.title}</span>
                 <span className="text-[12px] text-muted">{minutes(l.minutes)}</span>
-                {isToday && <Button onClick={() => void addUnplanned(l.title, l.threads[0]!.id)}>Add as done</Button>}
+                {isToday && (
+                  <>
+                    <Button onClick={() => void addUnplanned(l.title, l.threads[0]!.id, 'wip')}>Add as WIP</Button>
+                    <Button onClick={() => void addUnplanned(l.title, l.threads[0]!.id, 'done')}>Add as done</Button>
+                  </>
+                )}
               </li>
             ))}
           </ul>
@@ -151,6 +156,7 @@ export function Today({ version, status }: { version: number; status: Status | n
   const [linking, setLinking] = useState<TodoView | null>(null);
   const [starting, setStarting] = useState<{ todo: TodoView; draft: StartDraft } | null>(null);
   const [wrapping, setWrapping] = useState(false);
+  const [importing, setImporting] = useState(false);
   const adding = useRef(false);
 
   const load = useCallback(async () => {
@@ -213,6 +219,7 @@ export function Today({ version, status }: { version: number; status: Status | n
         )}
         <span className="flex-1" />
         {total > 0 && <span className="text-[13px] text-muted">{minutes(total)} on your todos</span>}
+        {isToday && <Button onClick={() => setImporting(true)}>Bring in threads</Button>}
         <Button onClick={() => setWrapping(true)}>{isToday ? 'Wrap up the day' : 'Review this day'}</Button>
       </div>
 
@@ -246,7 +253,14 @@ export function Today({ version, status }: { version: number; status: Status | n
 
       {data.todos.length === 0 ? (
         <Empty title={isToday ? 'Nothing planned yet' : 'No todos on this day'}>
-          {isToday ? 'Type what you want to get done today. Unfinished todos move to the next day on their own.' : null}
+          {isToday ? (
+            <>
+              <p>Type what you want to get done today, or start from the threads you already have open.</p>
+              <Button tone="primary" className="mt-3" onClick={() => setImporting(true)}>
+                Bring in your open threads
+              </Button>
+            </>
+          ) : null}
         </Empty>
       ) : (
         <ul className="flex flex-col gap-2">
@@ -260,6 +274,7 @@ export function Today({ version, status }: { version: number; status: Status | n
       {starting && (
         <StartModal status={status} initialDraft={starting.draft} todoId={starting.todo.id} onClose={() => setStarting(null)} />
       )}
+      {importing && <ImportThreads onClose={() => setImporting(false)} onDone={() => void load()} />}
       {wrapping && <WrapUp day={data.day} isToday={isToday} todos={data.todos} onChanged={() => void load()} onClose={() => setWrapping(false)} />}
     </div>
   );

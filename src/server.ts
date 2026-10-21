@@ -139,6 +139,13 @@ export function createServer(app: ThreadDesk, opts: ServerOptions): Hono {
     return c.json({ ok: true });
   });
 
+  api.post('/sessions/:id/label', async (c) => {
+    const { label } = await body<{ label: unknown }>(c);
+    if (label !== null && typeof label !== 'string') throw new HttpError(400, 'label must be text or null');
+    app.setLabel(c.req.param('id'), label);
+    return c.json({ card: app.card(c.req.param('id')) });
+  });
+
   api.post('/sessions/:id/recap', async (c) => {
     await app.recapNow(c.req.param('id'));
     return c.json({ queued: true });
@@ -158,6 +165,45 @@ export function createServer(app: ThreadDesk, opts: ServerOptions): Hono {
     const { sessionIds, markDone } = await body<{ sessionIds: string[]; markDone?: boolean }>(c);
     if (!Array.isArray(sessionIds) || sessionIds.length > 200) throw new HttpError(400, 'sessionIds required');
     return c.json({ results: await app.closeMany(sessionIds, Boolean(markDone)) });
+  });
+
+  api.get('/ask', (c) => c.json({ batches: app.asks.recent() }));
+  api.post('/ask', async (c) => {
+    const req = await body<{ sessionIds?: unknown; prompt?: unknown; model?: unknown }>(c);
+    if (!Array.isArray(req.sessionIds) || typeof req.prompt !== 'string') throw new HttpError(400, 'Pick threads and write a question');
+    const model = typeof req.model === 'string' && req.model ? req.model : app.config.ask.model;
+    try {
+      return c.json({ id: app.asks.create(req.sessionIds.map(String), req.prompt, model) });
+    } catch (e) {
+      throw new HttpError(400, (e as Error).message);
+    }
+  });
+  api.get('/ask/:id', (c) => {
+    const batch = app.asks.get(Number(c.req.param('id')));
+    if (!batch) throw new HttpError(404, 'Not found');
+    return c.json(batch);
+  });
+  api.post('/ask/:id/item', async (c) => {
+    const req = await body<{ sessionId?: unknown; included?: unknown; answer?: unknown }>(c);
+    if (typeof req.sessionId !== 'string') throw new HttpError(400, 'sessionId required');
+    app.asks.updateItem(Number(c.req.param('id')), req.sessionId, {
+      included: typeof req.included === 'boolean' ? req.included : undefined,
+      answer: typeof req.answer === 'string' ? req.answer : undefined,
+    });
+    return c.json({ ok: true });
+  });
+  api.post('/ask/:id/cancel', async (c) => {
+    app.asks.cancel(Number(c.req.param('id')));
+    return c.json({ ok: true });
+  });
+  api.post('/ask/:id/save', async (c) => {
+    const { path } = await body<{ path?: unknown }>(c);
+    if (typeof path !== 'string') throw new HttpError(400, 'path required');
+    try {
+      return c.json({ path: app.asks.save(Number(c.req.param('id')), path) });
+    } catch (e) {
+      throw new HttpError(400, (e as Error).message);
+    }
   });
 
   api.get('/tickets', (c) => c.json({ tickets: app.tickets() }));

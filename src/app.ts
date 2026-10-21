@@ -20,6 +20,9 @@ import { Store, type Card } from './store.js';
 import type { TerminalAdapter } from './terminal/types.js';
 import { Indexer } from './transcript/indexer.js';
 import { TodoService } from './todos/service.js';
+import { LabelStore, classifyWithAi, compileRules, resolveLabels } from './labels.js';
+import { AskRunner } from './ask.js';
+import { displayTitle } from './transcript/parse.js';
 import { todoKeys } from './todos/matching.js';
 
 export type BusEvents = {
@@ -54,6 +57,9 @@ export class ThreadDesk {
   readonly searcher: Searcher;
   readonly recaps: RecapQueue;
   readonly todos: TodoService;
+  readonly labels: LabelStore;
+  readonly classifier: RecapQueue;
+  readonly asks: AskRunner;
   indexing = { running: false, done: 0, total: 0 };
   private reindexPending = false;
   private boardTimer: NodeJS.Timeout | null = null;
@@ -87,6 +93,20 @@ export class ThreadDesk {
       cards: () => this.cards({ includeContinued: true }),
       changed: () => this.boardChanged(),
     });
+    this.labels = new LabelStore(db);
+    this.asks = new AskRunner(
+      db,
+      () => this.config,
+      (id) => {
+        const s = this.store.session(id);
+        return s ? { title: displayTitle(s), cwd: s.cwd, file: s.file, transcriptExists: s.transcript_exists === 1 } : null;
+      },
+      () => this.boardChanged(),
+    );
+    this.classifier = new RecapQueue(
+      (id) => this.runClassify(id),
+      () => 100,
+    );
     this.recaps = new RecapQueue(
       (id) => this.runRecap(id),
       () => this.config.recap.dailyCap,
@@ -131,6 +151,15 @@ export class ThreadDesk {
   private onSessionsChanged(ids: string[]): void {
     this.boardChanged();
     if (!this.indexing.running) this.todos.onSessionsChanged(ids);
+    if (this.config.labels.ai && !this.indexing.running) {
+      const stored = this.labels.all();
+      for (const id of ids) {
+        if (stored.has(id)) continue;
+        const card = this.card(id);
+        // Only threads no rule labels; each AI call counts against the daily cap.
+        if (card && !card.label && card.lastAt && Date.now() - card.lastAt < 7 * 86_400_000) this.classifier.push(id);
+      }
+    }
     if (!this.config.recap.enabled || this.indexing.running) return;
     for (const id of ids) {
       const s = this.store.session(id);
@@ -146,16 +175,39 @@ export class ThreadDesk {
   }
 
   cards(opts: { project?: string; includeContinued?: boolean } = {}): Card[] {
-    const cards = this.store.cards(opts, this.live.snapshot, this.live.hooks);
+    return this.decorate(this.store.cards(opts, this.live.snapshot, this.live.hooks));
+  }
+
+  /** Adds what lives outside the session index: todo links and labels. */
+  private decorate(cards: Card[]): Card[] {
     const todos = this.todos.todosBySession();
-    for (const card of cards) card.todos = todos.get(card.id) ?? [];
+    const labels = resolveLabels(this.labels.all(), compileRules(this.config.labels.rules, this.config.labels.names), cards);
+    for (const card of cards) {
+      card.todos = todos.get(card.id) ?? [];
+      card.label = labels.get(card.id) ?? null;
+    }
     return cards;
+  }
+
+  setLabel(id: string, name: string | null): void {
+    this.requireCard(id);
+    if (name !== null && name !== '' && !this.config.labels.names.includes(name)) throw new HttpError(400, 'Unknown label');
+    this.labels.set(id, name, 'manual');
+    this.boardChanged();
+  }
+
+  private async runClassify(id: string): Promise<void> {
+    const card = this.card(id);
+    if (!card || card.label) return;
+    // Explicit choices (including "no label") are never overwritten by a guess.
+    const name = await classifyWithAi(this.config, this.dataDir, this.config.labels.names, card);
+    this.labels.set(id, name ?? '', 'ai');
+    this.boardChanged();
   }
 
   card(id: string): Card | null {
     const card = this.store.card(id, this.live.snapshot, this.live.hooks);
-    if (card) card.todos = this.todos.todosBySession().get(card.id) ?? [];
-    return card;
+    return card ? this.decorate([card])[0]! : null;
   }
 
   requireCard(id: string): Card {
@@ -416,6 +468,10 @@ export class ThreadDesk {
     if (patch.idleHours !== undefined) next.cleanup.idleHours = Math.max(0, Math.round(patch.idleHours));
     if (patch.recapEnabled !== undefined) next.recap.enabled = patch.recapEnabled;
     if (patch.jiraSite !== undefined) next.trackers.jira.site = patch.jiraSite.trim();
+    if (patch.labelNames) {
+      next.labels.names = [...new Set(patch.labelNames.map((n) => n.trim()).filter((n) => n && n.length <= 30))].slice(0, 20);
+    }
+    if (patch.labelsAi !== undefined) next.labels.ai = patch.labelsAi;
     const keysChanged = JSON.stringify(next.links.ticketKeys) !== JSON.stringify(this.config.links.ticketKeys);
     this.config = next;
     this.remote.setConfig(next);
@@ -482,6 +538,8 @@ export class ThreadDesk {
       idleHours: this.config.cleanup.idleHours,
       recap: { enabled: this.config.recap.enabled, remainingToday: this.recaps.remainingToday },
       jiraSite: this.config.trackers.jira.site,
+      labels: { names: this.config.labels.names, ai: this.config.labels.ai },
+      ask: { model: this.config.ask.model, templates: this.config.ask.templates },
       projects: this.store.projects(),
     };
   }
@@ -507,6 +565,8 @@ export interface TicketGroup {
 }
 
 export interface SettingsPatch {
+  labelNames?: string[];
+  labelsAi?: boolean;
   ticketKeys?: string[];
   onDone?: Config['onDone'];
   idleHours?: number;

@@ -12,6 +12,7 @@ export interface CleanupSuggestion {
   note: string | null;
   reasons: CleanupReason[];
   detail: string[];
+  label: string | null;
 }
 
 /** A tab is only suggested when closing it cannot interrupt work in progress. */
@@ -59,6 +60,7 @@ export function suggestCleanup(cards: Card[], cfg: Config['cleanup'], now: numbe
       note: card.note,
       reasons,
       detail,
+      label: card.label?.name || null,
     });
   }
   return out.sort((a, b) => b.memoryBytes - a.memoryBytes);

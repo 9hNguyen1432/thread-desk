@@ -3,7 +3,7 @@ import { useActions } from '../actions';
 import { api } from '../api';
 import { COLUMN_COLOR, dayLabel, minutes } from '../format';
 import type { TodoStatus, TodoView } from '../types';
-import { Button } from './ui';
+import { Button, LabelChip } from './ui';
 
 export const TODO_COLOR: Record<TodoStatus, string> = {
   todo: 'var(--st-idle)',
@@ -97,7 +97,10 @@ export function TodoCard({
               {todo.title}
             </h3>
           )}
-          <div className="mt-0.5 flex flex-wrap gap-x-3 text-[12px] text-muted">
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[12px] text-muted">
+            {[...new Set(todo.threads.map((t) => t.label).filter((l): l is string => Boolean(l)))].map((l) => (
+              <LabelChip key={l} name={l} />
+            ))}
             {todo.carriedDays > 0 && <span>reported {dayLabel(todo.reportedDay)}, day {todo.carriedDays + 1}</span>}
             {todo.minutes > 0 && <span>{minutes(todo.minutes)} on this day</span>}
             {todo.status === 'dropped' && <span>dropped</span>}

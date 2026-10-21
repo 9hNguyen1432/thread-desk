@@ -2,7 +2,7 @@ import { useDraggable } from '@dnd-kit/react';
 import { useActions } from '../actions';
 import { COLUMN_COLOR, ago, bytes } from '../format';
 import type { Card } from '../types';
-import { LinkChip } from './ui';
+import { LabelChip, LinkChip } from './ui';
 
 const MAX_CHIPS = 4;
 
@@ -34,6 +34,7 @@ export function Strip({ card, arrived, now }: { card: Card; arrived: boolean; no
       </div>
 
       <div className="mt-0.5 flex min-w-0 items-baseline gap-1.5 text-[12px] text-muted">
+        {card.label?.name && <LabelChip name={card.label.name} guessed={card.label.source !== 'manual'} />}
         {card.projectName && <span className="shrink-0">{card.projectName}</span>}
         {card.branch && <span className="truncate font-mono text-[11px]">{card.branch}</span>}
       </div>

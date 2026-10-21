@@ -5,6 +5,7 @@ import type { LinkKind, LinkSource } from './links.js';
 import { SOURCE_PRIORITY } from './links.js';
 import type { LiveSnapshot } from './live/state.js';
 import type { HookState } from './board.js';
+import type { ThreadLabel } from './labels.js';
 import type { LiveStatus } from './terminal/types.js';
 import { displayTitle } from './transcript/parse.js';
 import type { SessionRow } from './transcript/indexer.js';
@@ -38,6 +39,7 @@ export interface Card {
   lastAt: number | null;
   lastHumanAt: number | null;
   lastAssistantAt: number | null;
+  firstPrompt: string | null;
   lastPrompt: string | null;
   lastAssistant: string | null;
   humanCount: number;
@@ -54,6 +56,7 @@ export interface Card {
   closeBlock: string | null;
   /** Open todos this thread is linked to. */
   todos: { id: number; title: string }[];
+  label: ThreadLabel | null;
   links: LinkView[];
   mentioned: LinkView[];
   primaryTicket: string | null;
@@ -296,6 +299,7 @@ function toCard(row: Row, linkRows: LinkRow[], live: LiveSnapshot, hook: HookSta
     lastAt: row.last_at,
     lastHumanAt: row.last_human_at,
     lastAssistantAt: row.last_assistant_at,
+    firstPrompt: row.first_prompt,
     lastPrompt: row.last_prompt,
     lastAssistant: hook?.lastAssistantMessage ?? row.last_assistant,
     humanCount: row.human_count,
@@ -312,6 +316,7 @@ function toCard(row: Row, linkRows: LinkRow[], live: LiveSnapshot, hook: HookSta
     tab: tab ? { ref: tab.ref, windowRef: tab.windowRef, title: tab.title, memoryBytes: tab.memoryBytes } : null,
     closeBlock: tab ? closeBlocker(agent, tab, status, live.errors) : null,
     todos: [],
+    label: null,
     links: primary,
     mentioned,
     primaryTicket: primaryTicket(primary),

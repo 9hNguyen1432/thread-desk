@@ -1,6 +1,7 @@
 import { Hono, type Context } from 'hono';
 import { HttpError, type ThreadDesk } from '../app.js';
 import { isDay, type Day } from './day.js';
+import { importCandidates, importGroups, openTodosByTicket } from './importing.js';
 import { captureDay, weekSummary } from './journal.js';
 import { TODO_STATUSES, type TodoStatus } from './store.js';
 
@@ -73,6 +74,25 @@ export function todoRoutes(app: ThreadDesk): Hono {
     app.todos.store.remove(todoId(app, c));
     app.boardChanged();
     return c.json({ ok: true });
+  });
+
+  r.get('/todos/import-candidates', (c) =>
+    c.json({ groups: importCandidates(app.cards({ includeContinued: true }), openTodosByTicket(app.todos, app.ticketRe)) }),
+  );
+
+  r.post('/todos/import', async (c) => {
+    const body = await json<{ groups?: unknown } | null>(c);
+    if (!Array.isArray(body?.groups) || body.groups.length === 0 || body.groups.length > 200) throw new HttpError(400, 'Pick at least one thread');
+    const groups = body.groups.map((g: { title?: unknown; sessionIds?: unknown; todoId?: unknown }) => {
+      if (typeof g?.title !== 'string' || !g.title.trim() || !Array.isArray(g.sessionIds) || g.sessionIds.length === 0) {
+        throw new HttpError(400, 'Each todo needs a title and at least one thread');
+      }
+      const todoId = Number.isInteger(g.todoId) ? (g.todoId as number) : undefined;
+      return { title: g.title.trim().slice(0, 200), sessionIds: g.sessionIds.map((id) => sessionId(app, id)), todoId };
+    });
+    const ids = importGroups(app.todos, groups);
+    app.boardChanged();
+    return c.json({ ids });
   });
 
   r.post('/todos/reorder', async (c) => {

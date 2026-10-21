@@ -2,6 +2,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'n
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
+import { DEFAULT_LABEL_RULES, DEFAULT_LABELS, type LabelRule } from './labels.js';
 
 export type OnDone = 'ask' | 'close' | 'keep';
 
@@ -38,6 +39,16 @@ export interface Config {
     branch: string;
     prompt: string;
   };
+  labels: {
+    names: string[];
+    rules: LabelRule[];
+    /** Ask Claude Haiku to label recent threads that no rule matches. */
+    ai: boolean;
+  };
+  ask: {
+    model: string;
+    templates: { name: string; prompt: string }[];
+  };
   day: {
     /** Local hour at which a new day begins, so late-night work counts for the day before. */
     startHour: number;
@@ -63,6 +74,26 @@ export const DEFAULT_CONFIG: Config = {
     worktreeDir: '{repoParent}/{repoName}-{slug}',
     branch: 'feat/{key}-{slug}',
     prompt: 'Work on {key}: {title}\n\n{url}\n\n{description}',
+  },
+  labels: { names: DEFAULT_LABELS, rules: DEFAULT_LABEL_RULES, ai: false },
+  ask: {
+    model: 'sonnet',
+    templates: [
+      {
+        name: 'Support case summary',
+        prompt:
+          'Summarize this support case for the team in at most 8 lines: who was affected, what they reported, the root cause, what was done or changed, and anything the support bot or docs got wrong. Do not change any files.',
+      },
+      {
+        name: 'Lessons for the support bot',
+        prompt:
+          'List what a support assistant should know after this thread: facts, how to check them, and any answer that was wrong before and the correct one. Be concrete and short. Do not change any files.',
+      },
+      {
+        name: 'Handoff status',
+        prompt: 'Write a short handoff: goal, what is done, what is left, open questions, links to PRs and tickets. Do not change any files.',
+      },
+    ],
   },
   day: { startHour: 4, idleGapMinutes: 20 },
 };

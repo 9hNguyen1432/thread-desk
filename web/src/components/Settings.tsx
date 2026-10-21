@@ -29,6 +29,8 @@ export function Settings({ status, onClose, onSaved }: { status: Status; onClose
   const [idleHours, setIdleHours] = useState(status.idleHours);
   const [recap, setRecap] = useState(status.recap.enabled);
   const [jiraSite, setJiraSite] = useState(status.jiraSite);
+  const [labelNames, setLabelNames] = useState(status.labels.names.join(', '));
+  const [labelsAi, setLabelsAi] = useState(status.labels.ai);
   const [busy, setBusy] = useState(false);
 
   const save = async () => {
@@ -40,6 +42,8 @@ export function Settings({ status, onClose, onSaved }: { status: Status; onClose
         idleHours,
         recapEnabled: recap,
         jiraSite,
+        labelNames: labelNames.split(',').map((n) => n.trim()).filter(Boolean),
+        labelsAi,
       });
       onSaved(next);
       actions.toast('Settings saved');
@@ -70,6 +74,16 @@ export function Settings({ status, onClose, onSaved }: { status: Status; onClose
               ))}
             </p>
           )}
+        </Row>
+        <Row label="Kinds of work">
+          <input className={field} value={labelNames} onChange={(e) => setLabelNames(e.target.value)} aria-label="Labels" />
+          <p className="mt-1 text-muted">
+            Comma-separated. Threads get one automatically from their branch and first prompt (rules live in config.json); pick one in a thread's details to override.
+          </p>
+          <label className="mt-1.5 flex items-center gap-2">
+            <input type="checkbox" checked={labelsAi} onChange={(e) => setLabelsAi(e.target.checked)} />
+            Let Claude Haiku label recent threads no rule matches (up to 100 a day)
+          </label>
         </Row>
         <Row label="When marked done">
           <select className="rounded border border-rule-strong bg-strip px-2 py-1" value={onDone} onChange={(e) => setOnDone(e.target.value as Status['onDone'])}>

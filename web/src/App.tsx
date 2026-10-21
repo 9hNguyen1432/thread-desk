@@ -67,6 +67,7 @@ export function App() {
   const [view, setView] = useState<View>(() => stored('td.view', 'board') as View);
   const [project, setProject] = useState(() => stored('td.project', ''));
   const [showArchived, setShowArchived] = useState(false);
+  const [label, setLabel] = useState(() => stored('td.label', ''));
   const [selected, setSelected] = useState<string | null>(null);
   const [palette, setPalette] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
@@ -125,6 +126,7 @@ export function App() {
 
   useEffect(() => store('td.view', view), [view]);
   useEffect(() => store('td.project', project), [project]);
+  useEffect(() => store('td.label', label), [label]);
 
   const actions: Actions = useMemo(
     () => ({
@@ -211,13 +213,14 @@ export function App() {
     );
   }
 
-  const cards = board?.cards ?? [];
+  const allCards = board?.cards ?? [];
+  const cards = !label ? allCards : allCards.filter((c) => (label === '-' ? !c.label?.name : c.label?.name === label));
   const needsYou = cards.filter((c) => c.column === 'needs_you').length;
 
   return (
     <ActionsContext.Provider value={actions}>
       <div className="flex h-full flex-col">
-        <header className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 pt-3 pb-3">
+        <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pt-3 pb-3">
           <h1 className="font-cond text-[22px] leading-none font-bold tracking-tight">Thread Desk</h1>
           <nav aria-label="Views" className="flex gap-0.5">
             {VIEWS.map((v) => (
@@ -248,15 +251,26 @@ export function App() {
               </option>
             ))}
           </select>
+          {(view === 'board' || view === 'cleanup') && status && (
+            <select aria-label="Kind of work" value={label} onChange={(e) => setLabel(e.target.value)} className="rounded border border-rule-strong bg-strip px-2 py-1 text-[13px]">
+              <option value="">All kinds</option>
+              {status.labels.names.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+              <option value="-">No label</option>
+            </select>
+          )}
           {view === 'board' && (
             <label className="flex items-center gap-1.5 text-[13px] text-muted">
               <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
-              Show archived
+              Archived
             </label>
           )}
           <span className="flex-1" />
           {board && board.totals.tabs > 0 && (
-            <span className="text-[13px] text-muted" title="Memory used by open cmux tabs">
+            <span className="hidden text-[13px] text-muted 2xl:inline" title="Memory used by open cmux tabs">
               {board.totals.tabs} tabs open, {bytes(board.totals.memoryBytes)}
             </span>
           )}
@@ -289,7 +303,7 @@ export function App() {
           {view === 'board' && <BoardView cards={cards} showArchived={showArchived} now={now} />}
           {view === 'today' && <Today version={version} status={status} />}
           {view === 'inbox' && <Inbox version={version} />}
-          {view === 'cleanup' && <Cleanup version={version} status={status} />}
+          {view === 'cleanup' && <Cleanup version={version} status={status} label={label} cards={cards} />}
           {view === 'tickets' && <Tickets version={version} status={status} onConfigure={() => setSettings(true)} />}
           {view === 'log' && <Log version={version} />}
           {view === 'digest' && <DigestView version={version} />}

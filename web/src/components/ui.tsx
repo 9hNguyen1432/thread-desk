@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
-import { prLabel } from '../format';
+import { labelColor, prLabel } from '../format';
 import type { LinkView } from '../types';
 
 type Tone = 'default' | 'primary' | 'quiet' | 'danger';
@@ -129,5 +129,17 @@ export function Empty({ title, children }: { title: string; children?: ReactNode
       <p className="font-cond text-lg font-semibold">{title}</p>
       {children && <div className="mt-2 text-muted">{children}</div>}
     </div>
+  );
+}
+
+export function LabelChip({ name, guessed }: { name: string; guessed?: boolean }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-sm border border-rule px-1.5 text-[11.5px] leading-[18px] font-medium"
+      title={guessed ? 'Guessed from the thread; pick one in the details to change it' : undefined}
+    >
+      <span className="size-1.5 rounded-full" style={{ background: labelColor(name) }} />
+      {name}
+    </span>
   );
 }

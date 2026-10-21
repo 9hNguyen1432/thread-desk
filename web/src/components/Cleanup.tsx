@@ -2,16 +2,19 @@ import { useEffect, useMemo, useState } from 'react';
 import { useActions } from '../actions';
 import { api } from '../api';
 import { ago, bytes } from '../format';
-import type { CleanupSuggestion, Status } from '../types';
+import type { Card, CleanupSuggestion, Status } from '../types';
+import { AskThreads } from './AskThreads';
 import { Button, Empty } from './ui';
 
-export function Cleanup({ version, status }: { version: number; status: Status | null }) {
+export function Cleanup({ version, status, label, cards }: { version: number; status: Status | null; label: string; cards: Card[] }) {
   const actions = useActions();
-  const [items, setItems] = useState<CleanupSuggestion[]>([]);
+  const [all, setItems] = useState<CleanupSuggestion[]>([]);
+  const items = useMemo(() => (!label ? all : all.filter((i) => (label === '-' ? !i.label : i.label === label))), [all, label]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [markDone, setMarkDone] = useState(true);
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [asking, setAsking] = useState(false);
 
   useEffect(() => {
     void api.get<{ suggestions: CleanupSuggestion[] }>('/cleanup').then((r) => {
@@ -25,14 +28,27 @@ export function Cleanup({ version, status }: { version: number; status: Status |
 
   const total = useMemo(() => items.filter((i) => selected.has(i.sessionId)).reduce((s, i) => s + i.memoryBytes, 0), [items, selected]);
 
+  const askButton = status && (
+    <Button onClick={() => setAsking(true)} title="Ask several threads the same question, then act on the answers once">
+      Ask threads…
+    </Button>
+  );
+  const askDialog = asking && status && (
+    <AskThreads cards={cards} preselected={[...selected]} status={status} version={version} onClose={() => setAsking(false)} />
+  );
+
   if (status?.terminal === 'none') {
     return <Empty title="Cleanup needs cmux">Thread Desk closes tabs through cmux. Without it you can still mark threads done.</Empty>;
   }
   if (items.length === 0) {
     return (
-      <Empty title="No tabs to close">
-        Tabs show up here when their thread is done, its PRs are merged, its ticket is closed, or it has been idle for {status?.idleHours ?? 24} hours.
-      </Empty>
+      <>
+        <Empty title="No tabs to close">
+          Tabs show up here when their thread is done, its PRs are merged, its ticket is closed, or it has been idle for {status?.idleHours ?? 24} hours.
+          <div className="mt-3">{askButton}</div>
+        </Empty>
+        {askDialog}
+      </>
     );
   }
 
@@ -71,6 +87,7 @@ export function Cleanup({ version, status }: { version: number; status: Status |
         <p className="flex-1 text-[13px] text-muted">
           These tabs are safe to close: nothing is running in them. Closed threads stay on the board and resume with their full history.
         </p>
+        {askButton}
         <Button onClick={() => setSelected(new Set(items.map((i) => i.sessionId)))}>Select all</Button>
         <label className="flex items-center gap-1.5 text-[13px]">
           <input type="checkbox" checked={markDone} onChange={(e) => setMarkDone(e.target.checked)} />
@@ -129,6 +146,7 @@ export function Cleanup({ version, status }: { version: number; status: Status |
           ))}
         </tbody>
       </table>
+      {askDialog}
     </div>
   );
 }

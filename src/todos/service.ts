@@ -17,6 +17,7 @@ export interface TodoThread {
   projectName: string | null;
   origin: LinkOrigin;
   minutes: number;
+  label: string | null;
 }
 
 export interface TodoView {
@@ -183,6 +184,7 @@ export class TodoService {
           projectName: card?.projectName ?? null,
           origin: l.origin,
           minutes: a ? a.minutes / (shares.get(l.session_id) ?? 1) : 0,
+          label: card?.label?.name || null,
         };
       });
       const history = events.get(todo.id) ?? [];

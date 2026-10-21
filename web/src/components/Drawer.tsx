@@ -51,6 +51,16 @@ function TodoSection({ card, onChanged }: { card: Card; onChanged: () => void })
     setChoice(candidates[0] ? String(candidates[0].id) : '');
   };
 
+  const makeTodo = async () => {
+    try {
+      await api.post('/todos/import', { groups: [{ title: card.primaryTicket && !card.title.includes(card.primaryTicket) ? `${card.primaryTicket} ${card.title}` : card.title, sessionIds: [card.id] }] });
+      actions.toast('Added to today');
+      onChanged();
+    } catch (e) {
+      actions.toast((e as Error).message, 'error');
+    }
+  };
+
   const add = async () => {
     try {
       await api.post(`/todos/${choice}/link`, { sessionId: card.id });
@@ -86,9 +96,14 @@ function TodoSection({ card, onChanged }: { card: Card; onChanged: () => void })
         ))}
       </ul>
       {open === null ? (
-        <button type="button" className="mt-1 text-[12px] underline" onClick={() => void loadTodos()}>
-          Add to a todo
-        </button>
+        <div className="mt-1 flex gap-3 text-[12px]">
+          <button type="button" className="underline" onClick={() => void loadTodos()}>
+            Add to a todo
+          </button>
+          <button type="button" className="underline" onClick={() => void makeTodo()}>
+            Make a todo from this thread
+          </button>
+        </div>
       ) : open.length === 0 ? (
         <p className="mt-1 text-[13px] text-muted">No other open todos today. Add one in the Today tab.</p>
       ) : (
@@ -264,6 +279,28 @@ export function Drawer({ id, status, version }: { id: string; status: Status | n
             </p>
           )}
         </section>
+
+        <label className="mt-4 flex items-center gap-2 text-[13px]">
+          <span className="font-medium">Kind of work</span>
+          <select
+            className="rounded border border-rule-strong bg-strip px-2 py-1"
+            value={card.label?.source === 'manual' ? card.label.name : 'auto'}
+            onChange={(e) =>
+              void api
+                .post(`/sessions/${card.id}/label`, { label: e.target.value === 'auto' ? null : e.target.value })
+                .then(() => load())
+                .catch((err: Error) => actions.toast(err.message, 'error'))
+            }
+          >
+            <option value="auto">{card.label?.name && card.label.source !== 'manual' ? `Automatic (${card.label.name})` : 'Automatic'}</option>
+            {status?.labels.names.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+            <option value="">No label</option>
+          </select>
+        </label>
 
         <TodoSection card={card} onChanged={() => void load()} />
 
