@@ -86,8 +86,8 @@ Want to look around first? `npx thread-desk --demo` shows sample threads without
 - **Bring in your open threads.** Starting fresh with thirty tabs open? One click turns them into
   todos, one per ticket, ticking the ones you touched in the last three days.
 - **Kinds of work.** Threads get a label such as Support, Feature or Bug from their branch and first
-  prompt, or the one you pick. Filter the board and cleanup by label. Claude Haiku can label the rest if
-  you turn it on.
+  prompt, or the one you pick in the thread drawer or right in Cleanup, for one tab or many at once.
+  Filter the board and cleanup by label. Claude Haiku can label the rest if you turn it on.
 - **Ask several threads at once.** Pick threads and ask them all the same question, for example a
   summary of each support case. Each thread answers in a read-only copy, one at a time, so nothing in
   it changes. Edit the answers, then copy them as one message, save them to a file, or hand them to one
