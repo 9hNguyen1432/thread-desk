@@ -78,7 +78,7 @@ export function Inbox({ version }: { version: number }) {
           >
             <span className="absolute inset-y-0 left-0 w-[5px] rounded-l bg-needs" aria-hidden />
             <div className="flex items-baseline gap-3">
-              <h3 className="flex-1 font-cond text-[16px] font-semibold">{card.title}</h3>
+              <h3 className="flex-1 text-[16px] font-medium">{card.title}</h3>
               <span className="text-[12px] text-muted">waiting {ago(card.lastAssistantAt ?? card.lastAt)}</span>
             </div>
             <div className="text-[12px] text-muted">

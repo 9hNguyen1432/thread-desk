@@ -29,7 +29,7 @@ export function Strip({ card, arrived, now }: { card: Card; arrived: boolean; no
     >
       <span className="absolute inset-y-0 left-0 w-[5px] rounded-l" style={{ background: color }} aria-hidden />
       <div className="flex items-start gap-2">
-        <h3 className="line-clamp-2 flex-1 font-cond text-[15px] leading-snug font-semibold">{card.title}</h3>
+        <h3 className="line-clamp-2 flex-1 text-[15px] leading-snug font-medium">{card.title}</h3>
         <span className="shrink-0 pt-0.5 text-[12px] text-muted tabular-nums">{ago(card.lastAt, now)}</span>
       </div>
 

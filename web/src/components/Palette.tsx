@@ -46,7 +46,7 @@ export function Palette({ initial, onClose }: { initial: string; onClose: () => 
       label="Find a thread"
       shouldFilter={false}
       overlayClassName="fixed inset-0 z-40 bg-black/30"
-      contentClassName="fixed top-[10vh] left-1/2 z-50 w-[min(680px,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden rounded-md border border-rule-strong bg-strip shadow-2xl"
+      contentClassName="fixed top-[10vh] left-1/2 z-50 w-[min(680px,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden rounded-md border border-rule-strong bg-strip shadow-lg"
       onKeyDown={(e) => {
         if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
           const selected = document.querySelector<HTMLElement>('[cmdk-item][data-selected="true"]');
@@ -86,7 +86,7 @@ export function Palette({ initial, onClose }: { initial: string; onClose: () => 
           >
             <div className="flex items-baseline gap-2">
               <span className="size-2 shrink-0 rounded-full" style={{ background: COLUMN_COLOR[h.card.column] }} title={COLUMN_LABEL[h.card.column]} />
-              <span className="flex-1 truncate font-cond text-[15px] font-semibold">{h.card.title}</span>
+              <span className="flex-1 truncate text-[15px] font-medium">{h.card.title}</span>
               <span className="shrink-0 text-[12px] text-muted">
                 {MATCH_LABEL[h.matchedBy]} {ago(h.card.lastAt)}
               </span>

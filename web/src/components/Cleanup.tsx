@@ -116,7 +116,7 @@ export function Cleanup({ version, status, label, cards }: { version: number; st
         <Button onClick={() => setSelected(new Set(items.map((i) => i.sessionId)))}>Select all</Button>
         <select
           aria-label="Set kind for selected"
-          className="rounded border border-rule-strong bg-strip px-2 py-1 text-[13px]"
+          className="rounded border border-rule-strong bg-strip pl-2 py-1 text-[13px]"
           value="-"
           disabled={chosen.length === 0}
           onChange={(e) => {
@@ -159,7 +159,7 @@ export function Cleanup({ version, status, label, cards }: { version: number; st
           <tr>
             <th className="w-8" />
             <th className="font-normal">Thread</th>
-            <th className="w-36 font-normal">Kind</th>
+            <th className="w-40 font-normal">Kind</th>
             <th className="font-normal">Why</th>
             <th className="text-right font-normal whitespace-nowrap">Memory</th>
             <th className="pr-3 text-right font-normal whitespace-nowrap">Last activity</th>
@@ -177,16 +177,16 @@ export function Cleanup({ version, status, label, cards }: { version: number; st
                   onClick={(e) => e.stopPropagation()}
                 />
               </td>
-              <td className="py-2">
-                <button type="button" className="text-left font-cond text-[14.5px] font-semibold hover:underline" onClick={(e) => (e.stopPropagation(), actions.select(item.sessionId))}>
+              <td className="py-2 pr-4">
+                <button type="button" className="text-left text-[14.5px] font-medium hover:underline" onClick={(e) => (e.stopPropagation(), actions.select(item.sessionId))}>
                   {item.title}
                 </button>
                 {item.note && <div className="text-[12px] text-muted italic">{item.note}</div>}
               </td>
-              <td className="py-2 pr-2" onClick={(e) => e.stopPropagation()}>
+              <td className="py-2 pr-4" onClick={(e) => e.stopPropagation()}>
                 <select
                   aria-label={`Kind of ${item.title}`}
-                  className={`w-full rounded border bg-strip px-1.5 py-0.5 text-[12.5px] ${item.labelPicked ? 'border-rule-strong font-medium' : 'border-rule text-muted'}`}
+                  className={`w-full rounded border bg-strip py-1 pl-2 text-[12.5px] ${item.labelPicked ? 'border-rule-strong font-medium' : 'border-rule text-muted'}`}
                   title={item.labelPicked ? 'You picked this' : 'Picked automatically; choose one to keep it'}
                   value={item.labelPicked ? (item.label ?? '') : 'auto'}
                   onChange={(e) => void setKind([item.sessionId], e.target.value)}

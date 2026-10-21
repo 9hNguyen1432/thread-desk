@@ -54,7 +54,7 @@ function LinkPicker({ todo, onClose, onLinked }: { todo: TodoView; onClose: () =
           .map((h) => (
             <li key={h.card.id}>
               <button type="button" className="w-full rounded px-2 py-1.5 text-left hover:bg-bay" onClick={() => void link(h.card.id)}>
-                <div className="truncate font-cond text-[14.5px] font-semibold">{h.card.title}</div>
+                <div className="truncate text-[14.5px] font-medium">{h.card.title}</div>
                 <div className="truncate text-[12px] text-muted">{h.snippet ?? h.card.projectName}</div>
               </button>
             </li>
@@ -94,7 +94,7 @@ function WrapUp({ day, isToday, todos, onChanged, onClose }: { day: string; isTo
     <Modal title={isToday ? 'Wrap up the day' : `Review ${dayLabel(day)}`} onClose={onClose} width="max-w-2xl">
       <div className="scroll-thin flex max-h-[65vh] flex-col gap-4 overflow-y-auto text-[13px]">
         <section>
-          <h3 className="font-cond text-[15px] font-semibold">Ready to mark done</h3>
+          <h3 className="text-[15px] font-medium">Ready to mark done</h3>
           {ready.length === 0 && <p className="mt-1 text-muted">Nothing finished by its threads yet.</p>}
           <ul className="mt-1 flex flex-col gap-1">
             {ready.map((t) => (
@@ -107,7 +107,7 @@ function WrapUp({ day, isToday, todos, onChanged, onClose }: { day: string; isTo
           </ul>
         </section>
         <section>
-          <h3 className="font-cond text-[15px] font-semibold">Worked on, but not on your list</h3>
+          <h3 className="text-[15px] font-medium">Worked on, but not on your list</h3>
           {unplanned.length === 0 && <p className="mt-1 text-muted">Every thread you touched belongs to a todo.</p>}
           <ul className="mt-1 flex flex-col gap-1">
             {unplanned.map((l) => (
@@ -125,7 +125,7 @@ function WrapUp({ day, isToday, todos, onChanged, onClose }: { day: string; isTo
           </ul>
         </section>
         <section>
-          <h3 className="font-cond text-[15px] font-semibold">{isToday ? 'Moving to tomorrow' : 'Left open that day'}</h3>
+          <h3 className="text-[15px] font-medium">{isToday ? 'Moving to tomorrow' : 'Left open that day'}</h3>
           <p className="mt-1 text-muted">
             {carrying.length === 0
               ? 'Nothing left open.'
@@ -135,7 +135,7 @@ function WrapUp({ day, isToday, todos, onChanged, onClose }: { day: string; isTo
         {capture && (
           <section>
             <div className="flex items-baseline justify-between">
-              <h3 className="font-cond text-[15px] font-semibold">Log, {minutes(capture.totalMinutes)}</h3>
+              <h3 className="text-[15px] font-medium">Log, {minutes(capture.totalMinutes)}</h3>
               <button type="button" className="text-[12px] underline" onClick={() => void navigator.clipboard.writeText(capture.markdown).then(() => actions.toast('Log copied'))}>
                 Copy
               </button>
@@ -208,7 +208,7 @@ export function Today({ version, status }: { version: number; status: Status | n
         <Button tone="quiet" onClick={() => setDay(shiftDay(data.day, -1))} aria-label="Previous day">
           ‹
         </Button>
-        <h2 className="min-w-28 text-center font-cond text-[18px] font-bold">{dayLabel(data.day, data.today)}</h2>
+        <h2 className="min-w-28 text-center text-[18px] font-semibold">{dayLabel(data.day, data.today)}</h2>
         <Button tone="quiet" onClick={() => setDay(shiftDay(data.day, 1))} disabled={isToday} aria-label="Next day">
           ›
         </Button>

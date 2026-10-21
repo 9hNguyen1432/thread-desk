@@ -204,7 +204,7 @@ export function App() {
     return (
       <div className="grid h-full place-items-center px-6 text-center">
         <div>
-          <h1 className="font-cond text-2xl font-semibold">Thread Desk is locked</h1>
+          <h1 className="text-2xl font-medium">Thread Desk is locked</h1>
           <p className="mt-2 text-muted">
             Open the link printed in your terminal, or run <code>thread-desk url</code>.
           </p>
@@ -221,19 +221,19 @@ export function App() {
     <ActionsContext.Provider value={actions}>
       <div className="flex h-full flex-col">
         <header className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pt-3 pb-3">
-          <h1 className="font-cond text-[22px] leading-none font-bold tracking-tight">Thread Desk</h1>
-          <nav aria-label="Views" className="flex gap-0.5">
+          <h1 className="text-[22px] leading-none font-semibold">Thread Desk</h1>
+          <nav aria-label="Views" className="flex gap-2">
             {VIEWS.map((v) => (
               <button
                 key={v.id}
                 type="button"
                 aria-current={view === v.id ? 'page' : undefined}
                 onClick={() => setView(v.id)}
-                className={`rounded px-2.5 py-1 font-cond text-[15px] font-semibold ${view === v.id ? 'bg-ink text-bg' : 'text-muted hover:text-ink'}`}
+                className={`border-b-2 px-2 py-1 text-[14px] ${view === v.id ? 'border-ink font-medium text-ink' : 'border-transparent text-muted hover:text-ink'}`}
               >
                 {v.label}
                 {v.id === 'inbox' && needsYou > 0 && (
-                  <span className="ml-1.5 rounded-full bg-needs px-1.5 text-[12px] text-white">{needsYou}</span>
+                  <span className="ml-1 text-[12px] font-medium text-needs tabular-nums">{needsYou}</span>
                 )}
               </button>
             ))}
@@ -242,7 +242,7 @@ export function App() {
             aria-label="Project"
             value={project}
             onChange={(e) => setProject(e.target.value)}
-            className="max-w-56 rounded border border-rule-strong bg-strip px-2 py-1 text-[13px]"
+            className="max-w-56 rounded border border-rule-strong bg-strip pl-2 py-1 text-[13px]"
           >
             <option value="">All projects</option>
             {status?.projects.map((p) => (
@@ -252,7 +252,7 @@ export function App() {
             ))}
           </select>
           {(view === 'board' || view === 'cleanup') && status && (
-            <select aria-label="Kind of work" value={label} onChange={(e) => setLabel(e.target.value)} className="rounded border border-rule-strong bg-strip px-2 py-1 text-[13px]">
+            <select aria-label="Kind of work" value={label} onChange={(e) => setLabel(e.target.value)} className="rounded border border-rule-strong bg-strip pl-2 py-1 text-[13px]">
               <option value="">All kinds</option>
               {status.labels.names.map((n) => (
                 <option key={n} value={n}>

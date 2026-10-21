@@ -54,11 +54,11 @@ export function Tickets({ version, status, onConfigure }: { version: number; sta
           <li key={t.key} className="rounded border border-rule bg-strip px-4 py-3">
             <div className="flex flex-wrap items-baseline gap-x-3">
               {t.url ? (
-                <a href={t.url} target="_blank" rel="noreferrer" className="font-cond text-[16px] font-bold hover:underline">
+                <a href={t.url} target="_blank" rel="noreferrer" className="text-[16px] font-semibold hover:underline">
                   {t.key}
                 </a>
               ) : (
-                <span className="font-cond text-[16px] font-bold">{t.key}</span>
+                <span className="text-[16px] font-semibold">{t.key}</span>
               )}
               <span className="flex-1 truncate">{t.title ?? ''}</span>
               {t.state && (

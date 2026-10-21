@@ -15,7 +15,7 @@ export function Button({ tone = 'default', className = '', ...props }: ButtonHTM
   return (
     <button
       type="button"
-      className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-[13px] font-medium whitespace-nowrap transition-colors ${TONES[tone]} ${className}`}
+      className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-[13px] font-normal whitespace-nowrap transition-colors ${TONES[tone]} ${className}`}
       {...props}
     />
   );
@@ -65,10 +65,10 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`w-full ${width} rounded-md border border-rule-strong bg-strip p-5 shadow-xl`}
+        className={`w-full ${width} rounded-md border border-rule-strong bg-strip p-5 shadow-lg`}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <h2 className="mb-3 font-cond text-lg font-semibold">{title}</h2>
+        <h2 className="mb-3 text-lg font-medium">{title}</h2>
         {children}
       </div>
     </div>
@@ -139,7 +139,7 @@ export function Kbd({ children }: { children: ReactNode }) {
 export function Empty({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <div className="mx-auto max-w-md py-16 text-center">
-      <p className="font-cond text-lg font-semibold">{title}</p>
+      <p className="text-lg font-medium">{title}</p>
       {children && <div className="mt-2 text-muted">{children}</div>}
     </div>
   );

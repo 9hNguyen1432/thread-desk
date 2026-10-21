@@ -76,7 +76,7 @@ export function TodoCard({
             <input
               autoFocus
               aria-label="Todo title"
-              className="w-full rounded border border-rule-strong bg-bg px-2 py-0.5 font-cond text-[15px] font-semibold"
+              className="w-full rounded border border-rule-strong bg-bg px-2 py-0.5 text-[15px] font-medium"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               onBlur={saveTitle}
@@ -90,7 +90,7 @@ export function TodoCard({
             />
           ) : (
             <h3
-              className={`font-cond text-[15.5px] leading-snug font-semibold ${todo.status === 'dropped' ? 'line-through' : ''}`}
+              className={`text-[15.5px] leading-snug font-medium ${todo.status === 'dropped' ? 'line-through' : ''}`}
               onDoubleClick={() => editable && setEditing(true)}
               title={editable ? 'Double-click to rename' : undefined}
             >

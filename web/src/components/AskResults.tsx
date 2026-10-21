@@ -125,10 +125,9 @@ export function AskResults({ batchId, version, status }: { batchId: number; vers
                 disabled={i.status !== 'done'}
                 onChange={(e) => void update(i.sessionId, { included: e.target.checked })}
               />
-              <span className="min-w-0 flex-1 truncate font-cond text-[14.5px] font-semibold">{i.title}</span>
-              <span className="text-[12px] text-muted">
-                {STATUS_TEXT[i.status]} · {mb(i.sizeBytes)}
-              </span>
+              <span className="min-w-0 flex-1 truncate text-[14.5px] font-medium">{i.title}</span>
+              <span className="text-[12px] text-muted">{STATUS_TEXT[i.status]}</span>
+              <span className="text-[12px] text-muted tabular-nums">{mb(i.sizeBytes)}</span>
             </div>
             {i.status === 'done' && (
               <textarea
@@ -146,7 +145,7 @@ export function AskResults({ batchId, version, status }: { batchId: number; vers
 
       {pending === 0 && included.length > 0 && (
         <section className="flex flex-col gap-2 border-t border-rule pt-3">
-          <h3 className="font-cond text-[15px] font-semibold">Then, once</h3>
+          <h3 className="text-[15px] font-medium">Then, once</h3>
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => void navigator.clipboard.writeText(combine(batch, edits)).then(() => actions.toast('Copied all answers'))}>
               Copy as one message

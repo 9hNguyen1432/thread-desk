@@ -78,13 +78,13 @@ export function ImportThreads({ onClose, onDone }: { onClose: () => void; onDone
                 <input type="checkbox" className="mt-1.5" aria-label={`Add ${g.title}`} checked={picked.has(g.key)} onChange={() => toggle(g.key)} />
                 <div className="min-w-0 flex-1">
                   {g.existingTodo ? (
-                    <p className="px-1 font-cond text-[14.5px] font-semibold">
+                    <p className="px-1 text-[14.5px] font-medium">
                       <span className="font-normal text-muted">Adds to:</span> {g.existingTodo.title}
                     </p>
                   ) : (
                     <input
                       aria-label="Todo title"
-                      className="w-full rounded border border-transparent bg-transparent px-1 font-cond text-[14.5px] font-semibold hover:border-rule focus:border-rule-strong"
+                      className="w-full rounded border border-transparent bg-transparent px-1 text-[14.5px] font-medium hover:border-rule focus:border-rule-strong"
                       value={titles[g.key] ?? g.title}
                       onChange={(e) => setTitles((t) => ({ ...t, [g.key]: e.target.value }))}
                     />

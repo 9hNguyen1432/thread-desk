@@ -86,7 +86,7 @@ export function Settings({ status, onClose, onSaved }: { status: Status; onClose
           </label>
         </Row>
         <Row label="When marked done">
-          <select className="rounded border border-rule-strong bg-strip px-2 py-1" value={onDone} onChange={(e) => setOnDone(e.target.value as Status['onDone'])}>
+          <select className="rounded border border-rule-strong bg-strip pl-2 py-1" value={onDone} onChange={(e) => setOnDone(e.target.value as Status['onDone'])}>
             <option value="ask">Ask whether to close the tab</option>
             <option value="close">Close the tab right away</option>
             <option value="keep">Keep the tab open</option>

@@ -48,7 +48,7 @@ function Bay({
     >
       <header className="flex items-baseline gap-2 px-3 pt-2.5 pb-1.5" title={COLUMN_HINT[column]}>
         <span className="size-2 translate-y-[-1px] rounded-full" style={{ background: COLUMN_COLOR[column] }} aria-hidden />
-        <h2 className="font-cond text-[15px] font-bold">{COLUMN_LABEL[column]}</h2>
+        <h2 className="text-[15px] font-semibold">{COLUMN_LABEL[column]}</h2>
         <span className="text-[13px] text-muted tabular-nums">{cards.length}</span>
       </header>
       <div className="scroll-thin flex min-h-24 flex-1 flex-col gap-1.5 overflow-y-auto px-2 pb-2">

@@ -49,7 +49,7 @@ export function HandoffModal({ card, onClose }: { card: Card; onClose: () => voi
       ) : (
         <label className="mt-3 flex items-center gap-2 text-[13px]">
           Post to
-          <select className="rounded border border-rule-strong bg-strip px-2 py-1" value={target} onChange={(e) => setTarget(e.target.value)}>
+          <select className="rounded border border-rule-strong bg-strip pl-2 py-1" value={target} onChange={(e) => setTarget(e.target.value)}>
             {targets.map((t) => (
               <option key={`${t.kind}|${t.key}`} value={`${t.kind}|${t.key}`}>
                 {t.label}

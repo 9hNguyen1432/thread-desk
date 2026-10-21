@@ -74,7 +74,7 @@ function TodoSection({ card, onChanged }: { card: Card; onChanged: () => void })
 
   return (
     <section className="mt-5">
-      <h3 className="font-cond text-[15px] font-semibold">Todo</h3>
+      <h3 className="text-[15px] font-medium">Todo</h3>
       {card.todos.length === 0 && open === null && <p className="mt-1 text-[13px] text-muted">Not part of any open todo.</p>}
       <ul className="mt-1 flex flex-col gap-1 text-[13px]">
         {card.todos.map((t) => (
@@ -110,7 +110,7 @@ function TodoSection({ card, onChanged }: { card: Card; onChanged: () => void })
         <p className="mt-1 text-[13px] text-muted">No other open todos today. Add one in the Today tab.</p>
       ) : (
         <div className="mt-1.5 flex gap-2">
-          <select aria-label="Todo" className="min-w-0 flex-1 rounded border border-rule-strong bg-strip px-2 py-1 text-[13px]" value={choice} onChange={(e) => setChoice(e.target.value)}>
+          <select aria-label="Todo" className="min-w-0 flex-1 rounded border border-rule-strong bg-strip pl-2 py-1 text-[13px]" value={choice} onChange={(e) => setChoice(e.target.value)}>
             {open.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.title}
@@ -179,12 +179,12 @@ export function Drawer({ id, status, version }: { id: string; status: Status | n
 
   return (
     <aside
-      className="fixed inset-y-0 right-0 z-30 flex w-full max-w-[520px] flex-col border-l border-rule-strong bg-strip shadow-2xl"
+      className="fixed inset-y-0 right-0 z-30 flex w-full max-w-[520px] flex-col border-l border-rule-strong bg-strip shadow-lg"
       aria-label="Thread details"
     >
       <header className="border-b border-rule px-5 pt-4 pb-3">
         <div className="flex items-start gap-3">
-          <h2 className="flex-1 font-cond text-xl leading-tight font-semibold">{card.title}</h2>
+          <h2 className="flex-1 text-xl leading-tight font-medium">{card.title}</h2>
           <button type="button" className="rounded px-2 text-xl text-muted hover:bg-bay" aria-label="Close details" onClick={() => actions.select(null)}>
             ×
           </button>
@@ -253,7 +253,7 @@ export function Drawer({ id, status, version }: { id: string; status: Status | n
 
         <section className="mt-5">
           <div className="flex items-baseline justify-between">
-            <h3 className="font-cond text-[15px] font-semibold">Summary</h3>
+            <h3 className="text-[15px] font-medium">Summary</h3>
             {status?.recap.enabled && (
               <button type="button" className="text-[12px] text-muted underline" onClick={() => void refreshRecap()}>
                 {card.recap ? 'Refresh' : 'Summarize'}
@@ -285,7 +285,7 @@ export function Drawer({ id, status, version }: { id: string; status: Status | n
         <label className="mt-4 flex items-center gap-2 text-[13px]">
           <span className="font-medium">Kind of work</span>
           <select
-            className="rounded border border-rule-strong bg-strip px-2 py-1"
+            className="rounded border border-rule-strong bg-strip pl-2 py-1"
             value={card.label?.source === 'manual' ? card.label.name : 'auto'}
             onChange={(e) =>
               void api
@@ -307,7 +307,7 @@ export function Drawer({ id, status, version }: { id: string; status: Status | n
         <TodoSection card={card} onChanged={() => void load()} />
 
         <section className="mt-5">
-          <h3 className="font-cond text-[15px] font-semibold">Links</h3>
+          <h3 className="text-[15px] font-medium">Links</h3>
           {card.links.length === 0 && <p className="mt-1 text-[13px] text-muted">No tickets, PRs or threads found yet.</p>}
           <ul className="mt-1.5 flex flex-wrap gap-1.5">
             {card.links.map((l) => (
@@ -338,7 +338,7 @@ export function Drawer({ id, status, version }: { id: string; status: Status | n
         </section>
 
         <section className="mt-5 text-[12.5px]">
-          <h3 className="font-cond text-[15px] font-semibold">Where</h3>
+          <h3 className="text-[15px] font-medium">Where</h3>
           <dl className="mt-1.5 grid grid-cols-[5.5rem_1fr] gap-x-2 gap-y-1">
             <dt className="text-muted">Folder</dt>
             <dd className="font-mono text-[12px] break-all">{card.cwd ?? 'unknown'}</dd>
@@ -364,7 +364,7 @@ export function Drawer({ id, status, version }: { id: string; status: Status | n
         </section>
 
         <section className="mt-5">
-          <h3 className="font-cond text-[15px] font-semibold">Latest messages</h3>
+          <h3 className="text-[15px] font-medium">Latest messages</h3>
           <ol className="mt-1.5 flex flex-col gap-1">
             {messages.map((m, i) => (
               <MessageItem key={i} m={m} />

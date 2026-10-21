@@ -49,7 +49,7 @@ export function Log({ version }: { version: number }) {
         <Button tone="quiet" onClick={() => setDay(shiftDay(current, -1))} aria-label="Previous day">
           ‹
         </Button>
-        <h2 className="min-w-28 text-center font-cond text-[18px] font-bold">{dayLabel(current, today ?? undefined)}</h2>
+        <h2 className="min-w-28 text-center text-[18px] font-semibold">{dayLabel(current, today ?? undefined)}</h2>
         <Button tone="quiet" onClick={() => setDay(shiftDay(current, 1))} disabled={current === today} aria-label="Next day">
           ›
         </Button>
@@ -80,7 +80,7 @@ export function Log({ version }: { version: number }) {
                   </span>
                 </td>
                 <td className="py-2">
-                  <div className="font-cond text-[14.5px] font-semibold">{l.title}</div>
+                  <div className="text-[14.5px] font-medium">{l.title}</div>
                   {l.reportedDay && l.reportedDay !== current && <div className="text-[12px] text-muted">reported {dayLabel(l.reportedDay)}</div>}
                 </td>
                 <td className="py-2 text-muted">{l.projects.join(', ')}</td>
@@ -100,7 +100,7 @@ export function Log({ version }: { version: number }) {
       {week && (
         <section className="mt-8">
           <div className="flex items-baseline justify-between">
-            <h2 className="font-cond text-[17px] font-bold">Week of {dayLabel(week.start)}, {minutes(week.totalMinutes)}</h2>
+            <h2 className="text-[17px] font-semibold">Week of {dayLabel(week.start)}, {minutes(week.totalMinutes)}</h2>
             <button type="button" className="text-[12px] underline" onClick={() => void navigator.clipboard.writeText(week.markdown).then(() => actions.toast('Week copied'))}>
               Copy week
             </button>

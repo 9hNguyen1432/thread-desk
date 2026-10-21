@@ -72,8 +72,9 @@ export function AskPicker({
                 <button type="button" className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left hover:bg-bay" onClick={() => onOpen(b.id)}>
                   <span className="min-w-0 flex-1 truncate">{b.prompt}</span>
                   <span className="shrink-0 text-[12px] text-muted">
-                    {b.status === 'running' ? `asking, ${b.done}/${b.count}` : `${b.done}/${b.count} answered`} · {ago(b.createdAt)}
+                    {b.status === 'running' ? `asking, ${b.done}/${b.count}` : `${b.done}/${b.count} answered`}
                   </span>
+                  <span className="w-16 shrink-0 text-right text-[12px] text-muted">{ago(b.createdAt)}</span>
                 </button>
               </li>
             ))}
@@ -101,7 +102,7 @@ export function AskPicker({
       <div className="flex flex-wrap items-center gap-2">
         <select
           aria-label="Question template"
-          className="rounded border border-rule-strong bg-strip px-2 py-1"
+          className="rounded border border-rule-strong bg-strip pl-2 py-1"
           value={template}
           onChange={(e) => {
             const i = Number(e.target.value);
@@ -115,7 +116,7 @@ export function AskPicker({
             </option>
           ))}
         </select>
-        <select aria-label="Model" className="rounded border border-rule-strong bg-strip px-2 py-1" value={model} onChange={(e) => setModel(e.target.value)}>
+        <select aria-label="Model" className="rounded border border-rule-strong bg-strip pl-2 py-1" value={model} onChange={(e) => setModel(e.target.value)}>
           {['haiku', 'sonnet', 'opus'].map((m) => (
             <option key={m} value={m}>
               {m}
