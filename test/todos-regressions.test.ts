@@ -42,7 +42,9 @@ describe('history', () => {
 describe('day boundaries across DST', () => {
   const original = process.env.TZ;
   afterEach(() => {
-    process.env.TZ = original;
+    // Assigning undefined would set the string "undefined", which silently means UTC.
+    if (original === undefined) delete process.env.TZ;
+    else process.env.TZ = original;
   });
 
   it('agrees with dayRange on the days clocks change', () => {

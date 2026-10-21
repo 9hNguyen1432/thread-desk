@@ -22,7 +22,8 @@ function repo(): { root: string; repoDir: string; dataDir: string } {
 
 const cfg = structuredClone(DEFAULT_CONFIG);
 
-describe('prepareLaunch', () => {
+// Real git commands run here; on a busy machine they can take longer than vitest's 5 s default.
+describe('prepareLaunch', { timeout: 30_000 }, () => {
   it('creates a worktree next to the repo and a command that reads the prompt from a file', async () => {
     const { root, repoDir, dataDir } = repo();
     const out = await prepareLaunch(
