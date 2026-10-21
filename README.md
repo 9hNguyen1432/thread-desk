@@ -11,7 +11,7 @@ ones are finished, and which you can close to get your memory back. Thread Desk 
 agent already keeps on your machine, asks cmux which tabs are alive and how much memory they use, and
 puts every thread on one Kanban board you can search, clean up and resume from.
 
-![Thread Desk: drag a thread to Done and close its tab, find threads by text or PR link, see what is waiting on you](https://raw.githubusercontent.com/9hNguyen1432/thread-desk/main/docs/demo.gif)
+![Thread Desk running inside cmux: a new thread shows up as Running, open threads become today's todos, ⌘K jumps to a ticket's tab, and marking a thread done closes its tab](https://raw.githubusercontent.com/9hNguyen1432/thread-desk/main/docs/demo.gif)
 
 Everything runs on your machine at `http://127.0.0.1:4545`. Nothing is uploaded.
 
