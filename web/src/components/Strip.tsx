@@ -23,13 +23,13 @@ export function Strip({ card, arrived, now }: { card: Card; arrived: boolean; no
       onKeyDown={(e) => {
         if (e.key === 'Enter') actions.select(card.id);
       }}
-      className={`group relative cursor-grab rounded border border-rule bg-strip py-2 pr-2.5 pl-3.5 hover:border-rule-strong ${
+      className={`group relative cursor-grab rounded-md border border-rule bg-strip py-2.5 pr-3 pl-3.5 hover:border-rule-strong ${
         isDragging ? 'opacity-60' : ''
       } ${arrived ? 'strip-arrive' : ''}`}
     >
-      <span className="absolute inset-y-0 left-0 w-[5px] rounded-l" style={{ background: color }} aria-hidden />
+      <span className="absolute inset-y-2.5 left-0 w-[3px] rounded-r" style={{ background: color }} aria-hidden />
       <div className="flex items-start gap-2">
-        <h3 className="line-clamp-2 flex-1 text-[15px] leading-snug font-medium">{card.title}</h3>
+        <h3 className="line-clamp-2 flex-1 text-[14.5px] leading-snug font-medium">{card.title}</h3>
         <span className="shrink-0 pt-0.5 text-[12px] text-muted tabular-nums">{ago(card.lastAt, now)}</span>
       </div>
 

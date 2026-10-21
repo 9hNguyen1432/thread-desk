@@ -41,23 +41,23 @@ function Bay({
     <section
       ref={ref}
       aria-label={COLUMN_LABEL[column]}
-      className={`flex min-w-[188px] max-w-[360px] flex-1 flex-col rounded-md bg-bay ${divider ? 'ml-3' : ''} ${
+      className={`flex min-w-[188px] max-w-[360px] flex-1 flex-col rounded-md ${divider ? 'ml-4 border-l border-rule pl-4' : ''} ${
         isDropTarget ? 'outline-2 outline-offset-[-2px]' : ''
       }`}
       style={isDropTarget ? { outlineColor: COLUMN_COLOR[column], outlineStyle: 'solid' } : undefined}
     >
-      <header className="flex items-baseline gap-2 px-3 pt-2.5 pb-1.5" title={COLUMN_HINT[column]}>
+      <header className="mx-1 mb-2 flex items-baseline gap-2 border-b border-rule pt-1 pb-2" title={COLUMN_HINT[column]}>
         <span className="size-2 translate-y-[-1px] rounded-full" style={{ background: COLUMN_COLOR[column] }} aria-hidden />
-        <h2 className="text-[15px] font-semibold">{COLUMN_LABEL[column]}</h2>
+        <h2 className="text-[14px] font-medium">{COLUMN_LABEL[column]}</h2>
         <span className="text-[13px] text-muted tabular-nums">{cards.length}</span>
       </header>
-      <div className="scroll-thin flex min-h-24 flex-1 flex-col gap-1.5 overflow-y-auto px-2 pb-2">
+      <div className="scroll-thin flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto px-1 pb-2">
         {cards.length === 0 && <p className="px-1.5 py-3 text-[12.5px] text-muted">{COLUMN_HINT[column]}</p>}
         {shown.map((card) => (
           <Strip key={card.id} card={card} arrived={arrived.has(card.id)} now={now} />
         ))}
         {cards.length > limit && (
-          <button type="button" className="rounded py-1.5 text-[12.5px] text-muted hover:bg-strip" onClick={() => setLimit((l) => l + PAGE * 2)}>
+          <button type="button" className="rounded py-1.5 text-[12.5px] text-muted hover:bg-bay" onClick={() => setLimit((l) => l + PAGE * 2)}>
             Show {Math.min(PAGE * 2, cards.length - limit)} more
           </button>
         )}

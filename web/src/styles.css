@@ -8,50 +8,50 @@
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
 :root {
-  --bg: #e6eaf0;
-  --bay: #dce2ea;
-  --strip: #fbfcfe;
-  --ink: #1c2430;
-  --muted: #5b6676;
-  --rule: #c5cdd8;
-  --rule-strong: #9aa6b6;
-  --focus: #2563eb;
-  --st-running: #2563eb;
-  --st-needs: #d97706;
-  --st-idle: #94a3b8;
-  --st-paused: #cbd5e1;
-  --st-waiting: #7c3aed;
-  --st-done: #15803d;
-  --st-archived: #a8a29e;
-  --danger: #b91c1c;
+  --bg: #f5f5f3;
+  --bay: #ececea;
+  --strip: #ffffff;
+  --ink: #1d1d1f;
+  --muted: #6e6e73;
+  --rule: #e3e3df;
+  --rule-strong: #c8c8c3;
+  --focus: #4f5bd5;
+  --st-running: #4f6fd8;
+  --st-needs: #c98a1b;
+  --st-idle: #a3a3a8;
+  --st-paused: #d4d4d0;
+  --st-waiting: #8b6fd0;
+  --st-done: #3f8f5f;
+  --st-archived: #b5b2ac;
+  --danger: #c0392b;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #121820;
-    --bay: #18202b;
-    --strip: #1f2935;
-    --ink: #e3e8ef;
-    --muted: #8c98a8;
-    --rule: #2c3744;
-    --rule-strong: #46556a;
-    --st-paused: #3b4757;
-    --st-idle: #64748b;
+    --bg: #151517;
+    --bay: #1c1c1f;
+    --strip: #222225;
+    --ink: #ececee;
+    --muted: #8e8e93;
+    --rule: #2e2e32;
+    --rule-strong: #46464b;
+    --st-paused: #3d3d42;
+    --st-idle: #6e6e73;
     color-scheme: dark;
   }
 }
 
 :root[data-theme='dark'] {
-  --bg: #121820;
-  --bay: #18202b;
-  --strip: #1f2935;
-  --ink: #e3e8ef;
-  --muted: #8c98a8;
-  --rule: #2c3744;
-  --rule-strong: #46556a;
-  --st-paused: #3b4757;
-  --st-idle: #64748b;
+  --bg: #151517;
+  --bay: #1c1c1f;
+  --strip: #222225;
+  --ink: #ececee;
+  --muted: #8e8e93;
+  --rule: #2e2e32;
+  --rule-strong: #46464b;
+  --st-paused: #3d3d42;
+  --st-idle: #6e6e73;
   color-scheme: dark;
 }
 
@@ -111,7 +111,7 @@ button:disabled {
 select {
   appearance: none;
   padding-right: 1.75rem;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%235b6676' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%236e6e73' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.6rem center;
   text-overflow: ellipsis;
