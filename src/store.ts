@@ -299,7 +299,8 @@ function toCard(row: Row, linkRows: LinkRow[], live: LiveSnapshot, hook: HookSta
     lastAt: row.last_at,
     lastHumanAt: row.last_human_at,
     lastAssistantAt: row.last_assistant_at,
-    firstPrompt: row.first_prompt,
+    // Only the start is needed (labels, display); pasted logs can be huge.
+    firstPrompt: row.first_prompt ? row.first_prompt.slice(0, 2000) : null,
     lastPrompt: row.last_prompt,
     lastAssistant: hook?.lastAssistantMessage ?? row.last_assistant,
     humanCount: row.human_count,

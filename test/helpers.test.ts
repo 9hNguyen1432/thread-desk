@@ -148,3 +148,32 @@ describe('mergeConfig', () => {
     expect('extra' in merged).toBe(false);
   });
 });
+
+describe('RecapQueue accounting', () => {
+  it('counts only calls that happened, persists the count, and never runs the same thread twice at once', async () => {
+    const { RecapQueue } = await import('../src/recap.js');
+    const counts = new Map<string, number>();
+    const counter = { used: (d: string) => counts.get(d) ?? 0, add: (d: string) => counts.set(d, (counts.get(d) ?? 0) + 1) };
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const calls: string[] = [];
+    const q = new RecapQueue(
+      async (id) => {
+        calls.push(id);
+        if (id === 'skip') return false;
+        await gate;
+        return true;
+      },
+      () => 2,
+      counter,
+    );
+    q.push('a');
+    expect(q.push('a')).toBe(false);
+    q.push('skip');
+    release();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(calls).toEqual(['a', 'skip']);
+    expect([...counts.values()]).toEqual([1]);
+    expect(q.remainingToday).toBe(1);
+  });
+});

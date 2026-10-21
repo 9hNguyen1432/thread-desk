@@ -245,3 +245,17 @@ describe('WIP for work done earlier the same day', () => {
     expect(svc.store.get(todo.id)!.status).toBe('wip');
   });
 });
+
+describe('AI label guesses', () => {
+  it('never replace a label you picked', async () => {
+    const { LabelStore } = await import('../src/labels.js');
+    const dir = mkdtempSync(join(tmpdir(), 'td-labels-'));
+    const db = openDb(dir);
+    const labels = new LabelStore(db);
+    labels.set(A, 'Bug', 'manual');
+    labels.setGuess(A, 'Feature');
+    expect(labels.all().get(A)).toEqual({ name: 'Bug', source: 'manual' });
+    labels.setGuess(B, 'Feature');
+    expect(labels.all().get(B)).toEqual({ name: 'Feature', source: 'ai' });
+  });
+});

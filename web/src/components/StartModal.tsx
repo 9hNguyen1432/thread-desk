@@ -9,18 +9,22 @@ export function StartModal({
   onClose,
   initialDraft,
   todoId,
+  defaultWorktree = true,
+  onLaunched,
 }: {
   status: Status | null;
   onClose: () => void;
   initialDraft?: StartDraft;
   todoId?: number;
+  defaultWorktree?: boolean;
+  onLaunched?: () => void;
 }) {
   const actions = useActions();
   const [input, setInput] = useState('');
   const [draft, setDraft] = useState<StartDraft | null>(initialDraft ?? null);
   const [projects, setProjects] = useState<{ project: string; name: string }[]>(status?.projects ?? []);
   const [cwd, setCwd] = useState(status?.projects[0]?.project ?? '');
-  const [worktree, setWorktree] = useState(true);
+  const [worktree, setWorktree] = useState(defaultWorktree);
   const [busy, setBusy] = useState(false);
   const [command, setCommand] = useState<string | null>(null);
 
@@ -51,6 +55,7 @@ export function StartModal({
         key: draft.key,
         todoId,
       });
+      onLaunched?.();
       if (r.opened) {
         actions.toast(`Started in ${r.dir}`);
         onClose();

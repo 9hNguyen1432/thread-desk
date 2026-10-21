@@ -22,13 +22,16 @@ export const DEFAULT_LABELS = ['Support', 'Feature', 'Bug', 'Investigation', 'Re
 
 /** First matching rule wins, so the more specific kinds of work come first. */
 export const DEFAULT_LABEL_RULES: LabelRule[] = [
-  { label: 'Support', text: '\\b(support|cs ticket|customer|user report)|user báo|user bị|khách' },
+  { label: 'Support', text: '\\b(ticket support|support ticket|cs ticket|customer support|user report|CS)\\b|user báo|user bị|khách hàng' },
   { label: 'Review', text: '\\breview\\b|\\bPR #?\\d+' },
+  { label: 'Investigation', text: '\\b(investigat\\w*|why|analy[sz]\\w*|audit)\\b|điều tra|phân tích' },
   { label: 'Bug', branch: '^(fix|bugfix|hotfix)/', text: '\\b(bug|crash|broken)\\b|lỗi' },
   { label: 'Feature', branch: '^feat(ure)?/', text: '\\b(implement|new feature|add support for)\\b' },
   { label: 'Ops', text: '\\b(deploy|infra|terraform|incident|alert|prod db)\\b' },
-  { label: 'Investigation', text: '\\b(investigat\\w*|why|analy[sz]\\w*|audit)\\b|điều tra|phân tích' },
 ];
+
+/** Rules only look at the start of a first prompt; pasted logs further down are noise. */
+const RULE_TEXT_LIMIT = 2000;
 
 interface CompiledRule {
   label: string;
@@ -53,11 +56,11 @@ export function compileRules(rules: LabelRule[], names: string[]): CompiledRule[
     .filter((r) => r.branch || r.text);
 }
 
+/** A branch name is a deliberate signal, so every branch rule is tried before any text rule. */
 export function ruleLabel(rules: CompiledRule[], thread: { branch: string | null; title: string; firstPrompt: string | null }): string | null {
-  const text = `${thread.title}\n${thread.firstPrompt ?? ''}`;
-  for (const r of rules) {
-    if ((r.branch && thread.branch && r.branch.test(thread.branch)) || (r.text && r.text.test(text))) return r.label;
-  }
+  if (thread.branch) for (const r of rules) if (r.branch?.test(thread.branch)) return r.label;
+  const text = `${thread.title}\n${(thread.firstPrompt ?? '').slice(0, RULE_TEXT_LIMIT)}`;
+  for (const r of rules) if (r.text?.test(text)) return r.label;
   return null;
 }
 
@@ -67,6 +70,17 @@ export class LabelStore {
   all(): Map<string, ThreadLabel> {
     const rows = this.db.prepare('select session_id, label, source from thread_labels').all() as { session_id: string; label: string; source: LabelSource }[];
     return new Map(rows.map((r) => [r.session_id, { name: r.label, source: r.source }]));
+  }
+
+  /** Stores an AI guess unless you picked a label in the meantime. */
+  setGuess(sessionId: string, name: string): void {
+    this.db
+      .prepare(
+        `insert into thread_labels (session_id, label, source, updated_at) values (?, ?, 'ai', ?)
+         on conflict(session_id) do update set label = excluded.label, source = 'ai', updated_at = excluded.updated_at
+         where thread_labels.source != 'manual'`,
+      )
+      .run(sessionId, name, Date.now());
   }
 
   /** `name` "" stores an explicit "no label"; null forgets the choice so rules apply again. */

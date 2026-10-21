@@ -20,6 +20,7 @@ export interface RunOptions {
   timeoutMs?: number;
   input?: string;
   env?: NodeJS.ProcessEnv;
+  signal?: AbortSignal;
 }
 
 /** Runs a binary without a shell; arguments are passed verbatim. */
@@ -34,6 +35,7 @@ export function run(bin: string, args: string[], opts: RunOptions = {}): Promise
         maxBuffer: 64 * 1024 * 1024,
         env: opts.env ?? process.env,
         encoding: 'utf8',
+        signal: opts.signal,
       },
       (error, stdout, stderr) => {
         if (error) {

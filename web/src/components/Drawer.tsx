@@ -4,7 +4,7 @@ import { api } from '../api';
 import { COLUMN_COLOR, COLUMN_LABEL, ago, bytes } from '../format';
 import type { Card, Lifecycle, LinkView, Message, Status, TodosResponse } from '../types';
 import { HandoffModal } from './HandoffModal';
-import { Button, LinkChip } from './ui';
+import { Button, LinkChip, modalOpen } from './ui';
 
 const LIFECYCLE_OPTIONS: { value: Lifecycle; label: string }[] = [
   { value: 'active', label: 'Active' },
@@ -100,9 +100,11 @@ function TodoSection({ card, onChanged }: { card: Card; onChanged: () => void })
           <button type="button" className="underline" onClick={() => void loadTodos()}>
             Add to a todo
           </button>
-          <button type="button" className="underline" onClick={() => void makeTodo()}>
-            Make a todo from this thread
-          </button>
+          {card.todos.length === 0 && (
+            <button type="button" className="underline" onClick={() => void makeTodo()}>
+              Make a todo from this thread
+            </button>
+          )}
         </div>
       ) : open.length === 0 ? (
         <p className="mt-1 text-[13px] text-muted">No other open todos today. Add one in the Today tab.</p>
@@ -146,7 +148,7 @@ export function Drawer({ id, status, version }: { id: string; status: Status | n
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !handoff) actions.select(null);
+      if (e.key === 'Escape' && !handoff && !modalOpen()) actions.select(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

@@ -77,7 +77,11 @@ export function todoRoutes(app: ThreadDesk): Hono {
   });
 
   r.get('/todos/import-candidates', (c) =>
-    c.json({ groups: importCandidates(app.cards({ includeContinued: true }), openTodosByTicket(app.todos, app.ticketRe)) }),
+    c.json({
+      groups: importCandidates(app.cards({ includeContinued: true }), openTodosByTicket(app.todos, app.ticketRe), Date.now(), (todoId, sid) =>
+        app.todos.store.rejected(todoId).has(sid),
+      ),
+    }),
   );
 
   r.post('/todos/import', async (c) => {
@@ -87,8 +91,16 @@ export function todoRoutes(app: ThreadDesk): Hono {
       if (typeof g?.title !== 'string' || !g.title.trim() || !Array.isArray(g.sessionIds) || g.sessionIds.length === 0) {
         throw new HttpError(400, 'Each todo needs a title and at least one thread');
       }
-      const todoId = Number.isInteger(g.todoId) ? (g.todoId as number) : undefined;
-      return { title: g.title.trim().slice(0, 200), sessionIds: g.sessionIds.map((id) => sessionId(app, id)), todoId };
+      const ids = g.sessionIds.map((id) => sessionId(app, id));
+      let todoId = Number.isInteger(g.todoId) ? (g.todoId as number) : undefined;
+      // Without an explicit target, join the open todo for the threads' shared ticket rather than duplicate it.
+      if (todoId === undefined) {
+        const tickets = new Set(ids.map((id) => app.card(id)?.primaryTicket ?? null));
+        const ticket = tickets.size === 1 ? [...tickets][0] : null;
+        const existing = ticket ? openTodosByTicket(app.todos, app.ticketRe).get(ticket) : undefined;
+        if (existing && !ids.some((id) => app.todos.store.rejected(existing.id).has(id))) todoId = existing.id;
+      }
+      return { title: g.title.trim().slice(0, 200), sessionIds: ids, todoId };
     });
     const ids = importGroups(app.todos, groups);
     app.boardChanged();

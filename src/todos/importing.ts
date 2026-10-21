@@ -27,21 +27,29 @@ const CANDIDATE_MS = 14 * 86_400_000;
  * Threads worth turning into todos: open in a terminal or touched in the last two weeks, not
  * finished, and not already part of an open todo. Threads sharing a ticket become one todo.
  */
-export function importCandidates(cards: Card[], openTodoByTicket: Map<string, { id: number; title: string }> = new Map(), now = Date.now()): ImportGroup[] {
+export function importCandidates(
+  cards: Card[],
+  openTodoByTicket: Map<string, { id: number; title: string }> = new Map(),
+  now = Date.now(),
+  rejected: (todoId: number, sessionId: string) => boolean = () => false,
+): ImportGroup[] {
   const groups = new Map<string, ImportGroup>();
   for (const card of cards) {
     if (card.lifecycle === 'done' || card.lifecycle === 'archived' || card.continuedIn) continue;
     if (card.todos.length > 0) continue;
     const recent = (card.lastAt ?? 0) >= now - CANDIDATE_MS;
     if (!card.tab && !card.agent && !recent) continue;
-    const key = card.primaryTicket ? `ticket:${card.primaryTicket}` : `thread:${card.id}`;
+    const existing = card.primaryTicket ? (openTodoByTicket.get(card.primaryTicket) ?? null) : null;
+    // A thread you unlinked from the todo for its ticket stays on its own instead of rejoining it.
+    const declined = existing !== null && rejected(existing.id, card.id);
+    const key = card.primaryTicket && !declined ? `ticket:${card.primaryTicket}` : `thread:${card.id}`;
     const group = groups.get(key) ?? {
       key,
       title: card.primaryTicket && !card.title.includes(card.primaryTicket) ? `${card.primaryTicket} ${card.title}` : card.title,
       ticket: card.primaryTicket,
       threads: [],
       suggested: false,
-      existingTodo: card.primaryTicket ? (openTodoByTicket.get(card.primaryTicket) ?? null) : null,
+      existingTodo: declined ? null : existing,
     };
     group.threads.push({ id: card.id, title: card.title, column: card.column, projectName: card.projectName, lastAt: card.lastAt });
     if ((card.lastAt ?? 0) >= now - RECENT_MS) group.suggested = true;

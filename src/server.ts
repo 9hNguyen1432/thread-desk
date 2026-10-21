@@ -192,6 +192,10 @@ export function createServer(app: ThreadDesk, opts: ServerOptions): Hono {
     });
     return c.json({ ok: true });
   });
+  api.post('/ask/:id/finish', async (c) => {
+    const { closeTabs } = await body<{ closeTabs?: unknown }>(c);
+    return c.json(await app.finishAsk(Number(c.req.param('id')), closeTabs === true));
+  });
   api.post('/ask/:id/cancel', async (c) => {
     app.asks.cancel(Number(c.req.param('id')));
     return c.json({ ok: true });

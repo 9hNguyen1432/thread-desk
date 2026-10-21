@@ -21,6 +21,13 @@ export function Button({ tone = 'default', className = '', ...props }: ButtonHTM
   );
 }
 
+const openModals: symbol[] = [];
+
+/** True while any dialog is open, so page-level keyboard handlers can stay out of the way. */
+export function modalOpen(): boolean {
+  return openModals.length > 0;
+}
+
 export function Modal({
   title,
   onClose,
@@ -39,11 +46,17 @@ export function Modal({
     ref.current?.querySelector<HTMLElement>('input, textarea, button')?.focus();
   }, []);
   useEffect(() => {
+    // Dialogs can open on top of each other; Escape closes only the topmost one.
+    const token = Symbol('modal');
+    openModals.push(token);
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeRef.current();
+      if (e.key === 'Escape' && openModals[openModals.length - 1] === token) closeRef.current();
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      openModals.splice(openModals.indexOf(token), 1);
+    };
   }, []);
   return (
     <div className="fixed inset-0 z-40 flex items-start justify-center bg-black/30 px-4 pt-[12vh]" onMouseDown={onClose}>

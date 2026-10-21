@@ -1,3 +1,4 @@
+import type { DB } from './db.js';
 import { run } from './exec.js';
 import type { Recap } from './store.js';
 import { truncate } from './transcript/parse.js';
@@ -62,39 +63,50 @@ export async function generateRecap(claudeBin: string, model: string, cwd: strin
   return parseRecapOutput(stdout);
 }
 
+/** Daily call counts kept in the database, so a restart does not reset the cap. */
+export interface UsageCounter {
+  used(day: string): number;
+  add(day: string): void;
+}
+
+export function dbUsageCounter(db: DB, kind: string): UsageCounter {
+  return {
+    used: (day) => (db.prepare('select count from usage where day = ? and kind = ?').get(day, kind) as { count: number } | undefined)?.count ?? 0,
+    add: (day) => {
+      db.prepare('insert into usage (day, kind, count) values (?, ?, 1) on conflict(day, kind) do update set count = count + 1').run(day, kind);
+    },
+  };
+}
+
 export class RecapQueue {
   private queue: string[] = [];
   private running = false;
-  private day = '';
-  private usedToday = 0;
+  private current: string | null = null;
 
+  /** `work` resolves to true when it actually called the model, which is what the cap counts. */
   constructor(
-    private readonly work: (sessionId: string) => Promise<void>,
+    private readonly work: (sessionId: string) => Promise<boolean>,
     private readonly dailyCap: () => number,
+    private readonly counter: UsageCounter,
   ) {}
 
+  private get day(): string {
+    return new Date().toISOString().slice(0, 10);
+  }
+
   get remainingToday(): number {
-    this.rollDay();
-    return Math.max(0, this.dailyCap() - this.usedToday);
+    return Math.max(0, this.dailyCap() - this.counter.used(this.day));
   }
 
   has(sessionId: string): boolean {
-    return this.queue.includes(sessionId);
+    return this.current === sessionId || this.queue.includes(sessionId);
   }
 
   push(sessionId: string): boolean {
-    if (this.queue.includes(sessionId) || this.remainingToday <= 0) return false;
+    if (this.has(sessionId) || this.remainingToday <= 0) return false;
     this.queue.push(sessionId);
     void this.drain();
     return true;
-  }
-
-  private rollDay(): void {
-    const today = new Date().toISOString().slice(0, 10);
-    if (today !== this.day) {
-      this.day = today;
-      this.usedToday = 0;
-    }
   }
 
   private async drain(): Promise<void> {
@@ -106,10 +118,13 @@ export class RecapQueue {
           this.queue = [];
           break;
         }
-        this.usedToday += 1;
-        await this.work(id).catch(() => undefined);
+        this.current = id;
+        // A failed call still costs quota, so it counts as spent.
+        const spent = await this.work(id).catch(() => true);
+        if (spent) this.counter.add(this.day);
       }
     } finally {
+      this.current = null;
       this.running = false;
     }
   }

@@ -26,7 +26,9 @@ export function Cleanup({ version, status, label, cards }: { version: number; st
     });
   }, [version]);
 
-  const total = useMemo(() => items.filter((i) => selected.has(i.sessionId)).reduce((s, i) => s + i.memoryBytes, 0), [items, selected]);
+  // Only rows on screen count; a selection hidden by the label filter is never closed by accident.
+  const chosen = useMemo(() => items.filter((i) => selected.has(i.sessionId)), [items, selected]);
+  const total = chosen.reduce((sum, i) => sum + i.memoryBytes, 0);
 
   const askButton = status && (
     <Button onClick={() => setAsking(true)} title="Ask several threads the same question, then act on the answers once">
@@ -34,21 +36,30 @@ export function Cleanup({ version, status, label, cards }: { version: number; st
     </Button>
   );
   const askDialog = asking && status && (
-    <AskThreads cards={cards} preselected={[...selected]} status={status} version={version} onClose={() => setAsking(false)} />
+    <AskThreads cards={cards} preselected={chosen.map((i) => i.sessionId)} status={status} version={version} onClose={() => setAsking(false)} />
+  );
+  // The ask dialog always renders in the same place, so switching between these views never resets it.
+  const withDialog = (body: React.ReactNode) => (
+    <>
+      {body}
+      {askDialog}
+    </>
   );
 
   if (status?.terminal === 'none') {
-    return <Empty title="Cleanup needs cmux">Thread Desk closes tabs through cmux. Without it you can still mark threads done.</Empty>;
+    return withDialog(
+      <Empty title="Cleanup needs cmux">
+        Thread Desk closes tabs through cmux. Without it you can still mark threads done, and ask threads questions.
+        <div className="mt-3">{askButton}</div>
+      </Empty>,
+    );
   }
   if (items.length === 0) {
-    return (
-      <>
-        <Empty title="No tabs to close">
-          Tabs show up here when their thread is done, its PRs are merged, its ticket is closed, or it has been idle for {status?.idleHours ?? 24} hours.
-          <div className="mt-3">{askButton}</div>
-        </Empty>
-        {askDialog}
-      </>
+    return withDialog(
+      <Empty title="No tabs to close">
+        Tabs show up here when their thread is done, its PRs are merged, its ticket is closed, or it has been idle for {status?.idleHours ?? 24} hours.
+        <div className="mt-3">{askButton}</div>
+      </Empty>,
     );
   }
 
@@ -64,7 +75,7 @@ export function Cleanup({ version, status, label, cards }: { version: number; st
     setBusy(true);
     try {
       const { results } = await api.post<{ results: { sessionId: string; ok: boolean; error?: string }[] }>('/cleanup/close', {
-        sessionIds: [...selected],
+        sessionIds: chosen.map((i) => i.sessionId),
         markDone,
       });
       const failed = results.filter((r) => !r.ok);
@@ -81,7 +92,7 @@ export function Cleanup({ version, status, label, cards }: { version: number; st
     }
   };
 
-  return (
+  return withDialog(
     <div className="mx-auto max-w-4xl px-4 pb-10">
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <p className="flex-1 text-[13px] text-muted">
@@ -93,15 +104,15 @@ export function Cleanup({ version, status, label, cards }: { version: number; st
           <input type="checkbox" checked={markDone} onChange={(e) => setMarkDone(e.target.checked)} />
           Also mark done
         </label>
-        <Button tone="primary" disabled={selected.size === 0 || busy} onClick={() => setConfirming(true)}>
-          Close {selected.size} {selected.size === 1 ? 'tab' : 'tabs'}
-          {selected.size > 0 && `, free ${bytes(total)}`}
+        <Button tone="primary" disabled={chosen.length === 0 || busy} onClick={() => setConfirming(true)}>
+          Close {chosen.length} {chosen.length === 1 ? 'tab' : 'tabs'}
+          {chosen.length > 0 && `, free ${bytes(total)}`}
         </Button>
       </div>
 
       {confirming && (
         <div role="alertdialog" className="mb-3 flex items-center gap-3 rounded border border-danger/50 bg-strip p-3 text-[13px]">
-          <span className="flex-1">Close {selected.size} cmux tabs now? Running processes in them will stop.</span>
+          <span className="flex-1">Close {chosen.length} cmux tabs now? Running processes in them will stop.</span>
           <Button tone="quiet" onClick={() => setConfirming(false)}>
             Keep them
           </Button>
@@ -146,7 +157,6 @@ export function Cleanup({ version, status, label, cards }: { version: number; st
           ))}
         </tbody>
       </table>
-      {askDialog}
-    </div>
+    </div>,
   );
 }

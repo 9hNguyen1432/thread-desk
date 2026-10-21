@@ -11,7 +11,7 @@ import { hookEffect, hooksInstalled, type HookPayload } from './hooks.js';
 import { ticketRegex } from './links.js';
 import { fetchAgents } from './live/agents.js';
 import { LiveState, type AgentSource } from './live/state.js';
-import { generateRecap, buildRecapInput, RecapQueue } from './recap.js';
+import { generateRecap, buildRecapInput, RecapQueue, dbUsageCounter } from './recap.js';
 import { RemoteStatus, type RemoteRef } from './remote/status.js';
 import { jiraComment, jiraCreds, parseSlackKey, slackReply, slackToken } from './remote/trackers.js';
 import { Searcher } from './search.js';
@@ -47,6 +47,8 @@ export interface OpenResult {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const RECAP_RECENT_MS = 24 * 3_600_000;
+/** After a failed AI label call, wait this long before trying the same thread again. */
+const CLASSIFY_RETRY_MS = 6 * 3_600_000;
 
 export class ThreadDesk {
   readonly bus = new EventEmitter<BusEvents>();
@@ -62,6 +64,7 @@ export class ThreadDesk {
   readonly asks: AskRunner;
   indexing = { running: false, done: 0, total: 0 };
   private reindexPending = false;
+  private readonly classifyFailedAt = new Map<string, number>();
   private boardTimer: NodeJS.Timeout | null = null;
 
   constructor(
@@ -102,14 +105,17 @@ export class ThreadDesk {
         return s ? { title: displayTitle(s), cwd: s.cwd, file: s.file, transcriptExists: s.transcript_exists === 1 } : null;
       },
       () => this.boardChanged(),
+      () => this.indexing.running,
     );
     this.classifier = new RecapQueue(
       (id) => this.runClassify(id),
       () => 100,
+      dbUsageCounter(db, 'label'),
     );
     this.recaps = new RecapQueue(
       (id) => this.runRecap(id),
       () => this.config.recap.dailyCap,
+      dbUsageCounter(db, 'recap'),
     );
   }
 
@@ -123,6 +129,7 @@ export class ThreadDesk {
     this.indexing = { ...this.indexing, running: false };
     this.indexer.watch();
     this.replayRecentForTodos();
+    this.asks.resume();
     this.boardChanged();
     this.runPendingReindex();
   }
@@ -157,6 +164,8 @@ export class ThreadDesk {
         if (stored.has(id)) continue;
         const card = this.card(id);
         // Only threads no rule labels; each AI call counts against the daily cap.
+        const failedAt = this.classifyFailedAt.get(id) ?? 0;
+        if (Date.now() - failedAt < CLASSIFY_RETRY_MS) continue;
         if (card && !card.label && card.lastAt && Date.now() - card.lastAt < 7 * 86_400_000) this.classifier.push(id);
       }
     }
@@ -181,12 +190,22 @@ export class ThreadDesk {
   /** Adds what lives outside the session index: todo links and labels. */
   private decorate(cards: Card[]): Card[] {
     const todos = this.todos.todosBySession();
-    const labels = resolveLabels(this.labels.all(), compileRules(this.config.labels.rules, this.config.labels.names), cards);
+    const labels = resolveLabels(this.labels.all(), this.labelRules(), cards);
     for (const card of cards) {
       card.todos = todos.get(card.id) ?? [];
       card.label = labels.get(card.id) ?? null;
     }
     return cards;
+  }
+
+  private compiledRules: { config: Config; rules: ReturnType<typeof compileRules> } | null = null;
+
+  /** Compiled once per config change instead of on every board refresh. */
+  private labelRules(): ReturnType<typeof compileRules> {
+    if (this.compiledRules?.config !== this.config) {
+      this.compiledRules = { config: this.config, rules: compileRules(this.config.labels.rules, this.config.labels.names) };
+    }
+    return this.compiledRules.rules;
   }
 
   setLabel(id: string, name: string | null): void {
@@ -196,13 +215,20 @@ export class ThreadDesk {
     this.boardChanged();
   }
 
-  private async runClassify(id: string): Promise<void> {
+  /** Resolves to true when the model was actually called, which is what counts against the cap. */
+  private async runClassify(id: string): Promise<boolean> {
+    if (this.labels.all().has(id)) return false;
     const card = this.card(id);
-    if (!card || card.label) return;
-    // Explicit choices (including "no label") are never overwritten by a guess.
-    const name = await classifyWithAi(this.config, this.dataDir, this.config.labels.names, card);
-    this.labels.set(id, name ?? '', 'ai');
-    this.boardChanged();
+    if (!card || card.label) return false;
+    try {
+      const name = await classifyWithAi(this.config, this.dataDir, this.config.labels.names, card);
+      // Stored as a guess only; a label you picked while this ran is kept.
+      this.labels.setGuess(id, name ?? '');
+      this.boardChanged();
+    } catch {
+      this.classifyFailedAt.set(id, Date.now());
+    }
+    return true;
   }
 
   card(id: string): Card | null {
@@ -340,6 +366,28 @@ export class ThreadDesk {
     return results;
   }
 
+  /** Marks every included thread of an ask done, and closes the tabs among them that are safe to close. */
+  async finishAsk(batchId: number, closeTabs: boolean): Promise<{ done: number; closed: number; kept: number }> {
+    const batch = this.asks.get(batchId);
+    if (!batch) throw new HttpError(404, 'Not found');
+    const ids = batch.items.filter((i) => i.included && i.status === 'done').map((i) => i.sessionId);
+    for (const id of ids) {
+      if (!this.store.session(id)) continue;
+      this.store.setLifecycle(id, 'done');
+      await this.live.syncBadges(id);
+    }
+    let closed = 0;
+    let kept = 0;
+    if (closeTabs) {
+      const withTabs = ids.filter((id) => this.card(id)?.tab);
+      const results = await this.closeMany(withTabs, true);
+      closed = results.filter((r) => r.ok).length;
+      kept = results.length - closed;
+    }
+    this.boardChanged();
+    return { done: ids.length, closed, kept };
+  }
+
   tickets(): TicketGroup[] {
     const cards = this.cards({ includeContinued: true });
     const groups = new Map<string, TicketGroup>();
@@ -382,14 +430,15 @@ export class ThreadDesk {
     if (!this.recaps.push(id)) throw new HttpError(409, 'Recap already queued or daily cap reached');
   }
 
-  private async runRecap(id: string): Promise<void> {
+  private async runRecap(id: string): Promise<boolean> {
     const session = this.store.session(id);
-    if (!session) return;
+    if (!session) return false;
     const messages = this.store.messages(id, 14);
     const input = buildRecapInput(session.first_prompt, messages);
     const recap = await generateRecap(this.config.claudeBin, this.config.recap.model, this.dataDir, input);
     this.store.setRecap(id, recap, session.message_count);
     this.boardChanged();
+    return true;
   }
 
   async startDraft(input: string): Promise<StartDraft> {
@@ -512,6 +561,7 @@ export class ThreadDesk {
       this.indexing = { running: true, done, total };
     });
     this.replayRecentForTodos();
+    this.asks.resume();
   }
 
   retentionDays(): number {

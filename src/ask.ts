@@ -55,7 +55,6 @@ const ASK_TIMEOUT_MS = 10 * 60_000;
 export function askArgs(prompt: string, sessionId: string, model: string): string[] {
   return [
     '-p',
-    prompt,
     '--resume',
     sessionId,
     '--fork-session',
@@ -69,6 +68,9 @@ export function askArgs(prompt: string, sessionId: string, model: string): strin
     '--settings',
     '{"disableAllHooks":true}',
     '--strict-mcp-config',
+    // The question goes last, after `--`, so one starting with "-" is never read as an option.
+    '--',
+    prompt,
   ];
 }
 
@@ -88,15 +90,34 @@ export interface SessionInfo {
 
 export class AskRunner {
   private running = false;
+  private current: { batchId: number; controller: AbortController } | null = null;
+  private retryTimer: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly db: DB,
     private readonly config: () => Config,
     private readonly session: (id: string) => SessionInfo | null,
     private readonly changed: () => void,
+    /** While true (for example during a reindex) sessions may be missing, so the queue waits. */
+    private readonly paused: () => boolean = () => false,
   ) {
-    // Anything left running by a previous process never finished; run it again.
-    db.prepare("update ask_items set status = 'queued', started_at = null where status = 'running'").run();
+    // Work left running by a previous process never finished: retry it in running batches and
+    // skip it in batches that were stopped.
+    db.transaction(() => {
+      db.prepare(
+        `update ask_items set status = 'queued', started_at = null where status = 'running'
+         and batch_id in (select id from ask_batches where status = 'running')`,
+      ).run();
+      db.prepare(
+        `update ask_items set status = 'skipped' where status in ('running', 'queued')
+         and batch_id in (select id from ask_batches where status != 'running')`,
+      ).run();
+    })();
+    void this.drain();
+  }
+
+  /** Called when a pause (such as a reindex) ends. */
+  resume(): void {
     void this.drain();
   }
 
@@ -169,6 +190,8 @@ export class AskRunner {
       this.db.prepare("update ask_items set status = 'skipped' where batch_id = ? and status = 'queued'").run(batchId);
       this.db.prepare("update ask_batches set status = 'cancelled' where id = ? and status = 'running'").run(batchId);
     })();
+    // Stop the question being asked right now too; it can otherwise run for minutes.
+    if (this.current?.batchId === batchId) this.current.controller.abort();
     this.changed();
   }
 
@@ -189,6 +212,13 @@ export class AskRunner {
     this.running = true;
     try {
       for (;;) {
+        if (this.paused()) {
+          this.retryTimer ??= setTimeout(() => {
+            this.retryTimer = null;
+            void this.drain();
+          }, 5000);
+          break;
+        }
         const next = this.db
           .prepare(
             `select i.batch_id, i.session_id, b.prompt, b.model from ask_items i join ask_batches b on b.id = i.batch_id
@@ -214,13 +244,23 @@ export class AskRunner {
       mark.run('failed', null, `The thread's folder no longer exists (${info?.cwd ?? 'unknown'})`, Date.now(), Date.now(), batchId, sessionId);
       return;
     }
+    const controller = new AbortController();
+    this.current = { batchId, controller };
     try {
-      const { stdout } = await run(this.config().claudeBin, askArgs(prompt, sessionId, model), { cwd: info.cwd, input: '', timeoutMs: ASK_TIMEOUT_MS });
+      const { stdout } = await run(this.config().claudeBin, askArgs(prompt, sessionId, model), {
+        cwd: info.cwd,
+        input: '',
+        timeoutMs: ASK_TIMEOUT_MS,
+        signal: controller.signal,
+      });
       const out = JSON.parse(stdout) as { result?: string; is_error?: boolean };
       if (out.is_error || typeof out.result !== 'string') throw new Error(out.result || 'Claude returned no answer');
       mark.run('done', out.result.trim(), null, Date.now(), Date.now(), batchId, sessionId);
     } catch (e) {
-      mark.run('failed', null, (e as Error).message.slice(0, 500), Date.now(), Date.now(), batchId, sessionId);
+      if (controller.signal.aborted) mark.run('skipped', null, 'Stopped', Date.now(), Date.now(), batchId, sessionId);
+      else mark.run('failed', null, (e as Error).message.slice(0, 500), Date.now(), Date.now(), batchId, sessionId);
+    } finally {
+      this.current = null;
     }
   }
 

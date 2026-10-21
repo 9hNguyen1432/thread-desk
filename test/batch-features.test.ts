@@ -173,3 +173,79 @@ describe('ask', () => {
     expect(() => runner.save(id, 'relative.md')).toThrow(/full path/);
   });
 });
+
+describe('review regressions', () => {
+  it('puts the question after -- so a leading dash is not an option', () => {
+    const args = askArgs('- what shipped?', 'sid', 'sonnet');
+    expect(args.slice(-2)).toEqual(['--', '- what shipped?']);
+    expect(args.indexOf('--resume')).toBeLessThan(args.indexOf('--'));
+  });
+
+  it('tries branch rules before text rules and keeps "support for" out of Support', () => {
+    const rules = compileRules(DEFAULT_LABEL_RULES, DEFAULT_LABELS);
+    expect(ruleLabel(rules, { branch: 'feat/x', title: 'Thread Slack về ticket support', firstPrompt: null })).toBe('Feature');
+    expect(ruleLabel(rules, { branch: 'main', title: 'add support for Apple Pay', firstPrompt: null })).toBe('Feature');
+    expect(ruleLabel(rules, { branch: 'main', title: 'fix crash in supported browsers', firstPrompt: null })).toBe('Bug');
+  });
+
+  it('keeps a thread you unlinked out of the existing todo group', () => {
+    const groups = importCandidates(
+      [card('a', { primaryTicket: 'ENG-1' }), card('b', { primaryTicket: 'ENG-1' })],
+      new Map([['ENG-1', { id: 7, title: 'Existing' }]]),
+      NOW,
+      (todoId, sid) => todoId === 7 && sid === 'b',
+    );
+    expect(groups.map((g) => [g.key, g.existingTodo?.id ?? null])).toEqual([
+      ['ticket:ENG-1', 7],
+      ['thread:b', null],
+    ]);
+  });
+});
+
+describe('ask runner control', () => {
+  const setup = (script: string) => {
+    const root = mkdtempSync(join(tmpdir(), 'td-ask2-'));
+    mkdirSync(join(root, 'data'));
+    const fake = join(root, 'claude');
+    writeFileSync(fake, `#!/bin/sh\n${script}\n`);
+    chmodSync(fake, 0o755);
+    const config: Config = structuredClone(DEFAULT_CONFIG);
+    config.claudeBin = fake;
+    const db = openDb(join(root, 'data'));
+    const session = () => ({ title: 'T', cwd: root, file: null, transcriptExists: true });
+    return { db, config, session, root };
+  };
+  const waitFor = async (check: () => boolean) => {
+    for (let i = 0; i < 100 && !check(); i++) await new Promise((r) => setTimeout(r, 30));
+  };
+
+  it('stops the question being asked when the batch is cancelled', async () => {
+    const { db, config, session } = setup('sleep 5; printf \'{"result":"late"}\'');
+    const runner = new AskRunner(db, () => config, session, () => undefined);
+    const id = runner.create(['s1', 's2'], 'q', 'sonnet');
+    await waitFor(() => runner.get(id)!.items[0]!.status === 'running');
+    const started = Date.now();
+    runner.cancel(id);
+    await waitFor(() => runner.get(id)!.items[0]!.status !== 'running');
+    expect(Date.now() - started).toBeLessThan(3000);
+    expect(runner.get(id)!.items.map((i) => i.status)).toEqual(['skipped', 'skipped']);
+  });
+
+  it('waits while paused and does not revive stopped batches after a restart', async () => {
+    const { db, config, session } = setup('printf \'{"result":"ok"}\'');
+    let paused = true;
+    const runner = new AskRunner(db, () => config, session, () => undefined, () => paused);
+    const id = runner.create(['s1'], 'q', 'sonnet');
+    await new Promise((r) => setTimeout(r, 200));
+    expect(runner.get(id)!.items[0]!.status).toBe('queued');
+    paused = false;
+    runner.resume();
+    await waitFor(() => runner.get(id)!.status === 'done');
+    expect(runner.get(id)!.items[0]!.answer).toBe('ok');
+
+    db.prepare("insert into ask_batches (id, prompt, model, status, created_at) values (99, 'q', 'sonnet', 'cancelled', 0)").run();
+    db.prepare("insert into ask_items (batch_id, session_id, position, status) values (99, 's9', 0, 'running')").run();
+    const again = new AskRunner(db, () => config, session, () => undefined);
+    expect(again.get(99)!.items[0]!.status).toBe('skipped');
+  });
+});

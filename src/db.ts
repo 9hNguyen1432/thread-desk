@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 export type DB = Database.Database;
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 /** Databases older than this need derived tables rebuilt instead of only new tables added. */
 const LAST_DESTRUCTIVE_VERSION = 2;
 
@@ -151,6 +151,13 @@ create table if not exists ask_items (
   started_at integer,
   finished_at integer,
   primary key (batch_id, session_id)
+);
+
+create table if not exists usage (
+  day text not null,
+  kind text not null,
+  count integer not null,
+  primary key (day, kind)
 );
 
 create table if not exists remote_status (

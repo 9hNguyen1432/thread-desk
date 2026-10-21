@@ -83,6 +83,16 @@ Want to look around first? `npx thread-desk --demo` shows sample threads without
   PR, or when you accept a suggestion; nothing links behind your back otherwise. A todo turns WIP when one
   of its threads gets a prompt, unfinished todos move to the next day with the day they were reported,
   and wrapping up the day offers to mark done the todos whose threads, PRs or tickets are finished.
+- **Bring in your open threads.** Starting fresh with thirty tabs open? One click turns them into
+  todos, one per ticket, ticking the ones you touched in the last three days.
+- **Kinds of work.** Threads get a label such as Support, Feature or Bug from their branch and first
+  prompt, or the one you pick. Filter the board and cleanup by label. Claude Haiku can label the rest if
+  you turn it on.
+- **Ask several threads at once.** Pick threads and ask them all the same question, for example a
+  summary of each support case. Each thread answers in a read-only copy, one at a time, so nothing in
+  it changes. Edit the answers, then copy them as one message, save them to a file, or hand them to one
+  new thread, so a single session makes any follow-up change instead of many sessions fighting over
+  the same files.
 - **Log.** What you actually worked on each day: todos done or in progress that day, work that was not
   on your list, and estimated time per todo and project from message timestamps. Copy it as text or
   download CSV for a timelog, and see the week at a glance.
@@ -164,6 +174,9 @@ Settings dialog.
 | `trackers.jira.site` | `""` | e.g. `yourteam.atlassian.net` |
 | `trackers.jira.keys` / `trackers.linear.keys` | `[]` | Which prefixes belong to which tracker |
 | `start.branch`, `start.prompt`, `start.worktreeDir` | see file | Templates for starting a thread from a ticket |
+| `labels.names`, `labels.rules` | Support, Feature, Bug, ... | Label names, and regex rules on branch or title and first prompt (first match wins) |
+| `labels.ai` | `false` | Label recent unmatched threads with Claude Haiku (at most 100 a day) |
+| `ask.model`, `ask.templates` | `sonnet`, 3 templates | Default model and saved questions for asking several threads |
 | `day.startHour` | `4` | Local hour a new day starts, so late-night work counts for the day before |
 | `day.idleGapMinutes` | `20` | Gaps between messages longer than this do not count as working time |
 
