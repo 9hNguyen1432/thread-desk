@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useActions } from '../actions';
 import { api } from '../api';
 import { dayLabel, minutes, shiftDay } from '../format';
@@ -151,6 +151,7 @@ export function Today({ version, status }: { version: number; status: Status | n
   const [linking, setLinking] = useState<TodoView | null>(null);
   const [starting, setStarting] = useState<{ todo: TodoView; draft: StartDraft } | null>(null);
   const [wrapping, setWrapping] = useState(false);
+  const adding = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -165,13 +166,18 @@ export function Today({ version, status }: { version: number; status: Status | n
   }, [load, version]);
 
   const add = async () => {
-    if (!text.trim()) return;
+    if (!text.trim() || adding.current) return;
+    adding.current = true;
+    const value = text;
+    setText('');
     try {
-      await api.post('/todos', { text });
-      setText('');
+      await api.post('/todos', { text: value });
       void load();
     } catch (e) {
+      setText(value);
       actions.toast((e as Error).message, 'error');
+    } finally {
+      adding.current = false;
     }
   };
 
@@ -225,6 +231,8 @@ export function Today({ version, status }: { version: number; status: Status | n
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
+              // Enter also confirms a word in Vietnamese and CJK input methods; never submit then.
+              if (e.nativeEvent.isComposing || e.keyCode === 229) return;
               if (e.key === 'Enter' && !e.shiftKey && (!text.includes('\n') || e.metaKey || e.ctrlKey)) {
                 e.preventDefault();
                 void add();

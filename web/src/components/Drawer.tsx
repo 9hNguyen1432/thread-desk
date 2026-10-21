@@ -73,7 +73,12 @@ function TodoSection({ card, onChanged }: { card: Card; onChanged: () => void })
             <button
               type="button"
               className="text-[12px] text-muted hover:text-danger"
-              onClick={() => void api.post(`/todos/${t.id}/unlink`, { sessionId: card.id }).then(onChanged)}
+              onClick={() =>
+                void api
+                  .post(`/todos/${t.id}/unlink`, { sessionId: card.id })
+                  .then(onChanged)
+                  .catch((e: Error) => actions.toast(e.message, 'error'))
+              }
             >
               Unlink
             </button>

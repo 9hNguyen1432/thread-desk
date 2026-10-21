@@ -78,6 +78,14 @@ Want to look around first? `npx thread-desk --demo` shows sample threads without
 
 ## What it does
 
+- **Today.** A todo list per day. Paste a Slack message, ticket or PR link and it becomes a todo. Threads
+  link to it when you start them from the todo, when they mention the exact same Slack thread, ticket or
+  PR, or when you accept a suggestion; nothing links behind your back otherwise. A todo turns WIP when one
+  of its threads gets a prompt, unfinished todos move to the next day with the day they were reported,
+  and wrapping up the day offers to mark done the todos whose threads, PRs or tickets are finished.
+- **Log.** What you actually worked on each day: todos done or in progress that day, work that was not
+  on your list, and estimated time per todo and project from message timestamps. Copy it as text or
+  download CSV for a timelog, and see the week at a glance.
 - **Board.** Every session is a strip in a column: *Needs you*, *Running*, *Idle* (open tab), *Paused*
   (no tab), plus your own *Waiting on others*, *Done* and *Archived*. Filter by project; worktrees are
   grouped under their repository.
@@ -156,6 +164,8 @@ Settings dialog.
 | `trackers.jira.site` | `""` | e.g. `yourteam.atlassian.net` |
 | `trackers.jira.keys` / `trackers.linear.keys` | `[]` | Which prefixes belong to which tracker |
 | `start.branch`, `start.prompt`, `start.worktreeDir` | see file | Templates for starting a thread from a ticket |
+| `day.startHour` | `4` | Local hour a new day starts, so late-night work counts for the day before |
+| `day.idleGapMinutes` | `20` | Gaps between messages longer than this do not count as working time |
 
 Credentials are read from the environment and never written to disk:
 

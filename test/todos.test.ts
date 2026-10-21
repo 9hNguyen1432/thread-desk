@@ -127,7 +127,7 @@ describe('TodoService', () => {
     writeSession(B, '/w/app', [[now, 'user', 'ENG-7: users cannot log in']]);
     await indexer.syncPath(sessionFile(B));
 
-    const [view] = svc.view(svc.today());
+    const [view] = svc.view(svc.today(), { suggest: true });
     expect(view!.threads.map((t) => [t.id, t.origin])).toEqual([[B, 'auto']]);
     expect(view!.status).toBe('wip');
     expect(view!.suggestions.map((s) => s.sessionId)).toContain(A);
@@ -143,11 +143,11 @@ describe('TodoService', () => {
       [now, 'assistant', 'This looks related to ENG-9.'],
     ]);
     await indexer.syncPath(sessionFile(C));
-    let [view] = svc.view(svc.today());
+    let [view] = svc.view(svc.today(), { suggest: true });
     expect(view!.threads).toEqual([]);
     expect(view!.suggestions[0]?.sessionId).toBe(C);
     svc.store.reject(todo.id, C);
-    [view] = svc.view(svc.today());
+    [view] = svc.view(svc.today(), { suggest: true });
     expect(view!.suggestions).toEqual([]);
   });
 

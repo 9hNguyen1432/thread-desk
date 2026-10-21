@@ -5,6 +5,10 @@ import type { TodoRow } from './store.js';
 
 /** Link sources that come from the user (branch, title, prompts, created PRs), not from Claude's replies. */
 const USER_SOURCES = new Set(['pr-link', 'branch', 'title', 'user']);
+/** Stricter set for linking without asking: titles can be written by Claude, so they only suggest. */
+const AUTO_SOURCES = new Set(['pr-link', 'branch', 'user']);
+/** Only these identify the same piece of work closely enough to link without asking. */
+export const AUTO_LINK_KINDS: ReadonlySet<LinkKind> = new Set(['slack', 'ticket', 'pr']);
 
 const KIND_REASON: Record<LinkKind, string> = {
   slack: 'same Slack thread',
@@ -25,6 +29,7 @@ export interface KeyMatch {
   kind: LinkKind;
   key: string;
   fromUser: boolean;
+  autoEligible: boolean;
 }
 
 export interface Suggestion {
@@ -46,9 +51,16 @@ export function sessionsSharingKeys(db: DB, keys: LinkRef[]): KeyMatch[] {
     .all(...keys.flatMap((k) => [k.kind, k.key])) as { session_id: string; kind: LinkKind; key: string; source: string }[];
   const best = new Map<string, KeyMatch>();
   for (const r of rows) {
-    const match = { sessionId: r.session_id, kind: r.kind, key: r.key, fromUser: USER_SOURCES.has(r.source) };
+    const match: KeyMatch = {
+      sessionId: r.session_id,
+      kind: r.kind,
+      key: r.key,
+      fromUser: USER_SOURCES.has(r.source),
+      autoEligible: AUTO_SOURCES.has(r.source) && AUTO_LINK_KINDS.has(r.kind),
+    };
     const prev = best.get(r.session_id);
-    if (!prev || (match.fromUser && !prev.fromUser)) best.set(r.session_id, match);
+    const rank = (m: KeyMatch) => (m.autoEligible ? 2 : 0) + (m.fromUser ? 1 : 0);
+    if (!prev || rank(match) > rank(prev)) best.set(r.session_id, match);
   }
   return [...best.values()];
 }

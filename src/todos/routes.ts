@@ -20,10 +20,12 @@ function todoId(app: ThreadDesk, c: Context): number {
   return id;
 }
 
-function sessionId(app: ThreadDesk, value: unknown): string {
-  if (typeof value !== 'string' || !UUID_RE.test(value) || !app.store.session(value)) throw new HttpError(400, 'Unknown thread');
+function sessionId(app: ThreadDesk, value: unknown, mustExist = true): string {
+  if (typeof value !== 'string' || !UUID_RE.test(value) || (mustExist && !app.store.session(value))) throw new HttpError(400, 'Unknown thread');
   return value;
 }
+
+const MAX_NOTES = 10_000;
 
 function dayParam(app: ThreadDesk, value: string | undefined): Day {
   if (!value || value === 'today') return app.todos.today();
@@ -36,28 +38,33 @@ export function todoRoutes(app: ThreadDesk): Hono {
 
   r.get('/todos', (c) => {
     const day = dayParam(app, c.req.query('day'));
-    return c.json({ day, today: app.todos.today(), todos: app.todos.view(day) });
+    return c.json({ day, today: app.todos.today(), todos: app.todos.view(day, { suggest: true }) });
   });
 
   r.post('/todos', async (c) => {
-    const { text } = await json<{ text: string }>(c);
-    const todo = app.todos.create(String(text ?? ''));
+    const body = await json<{ text?: unknown } | null>(c);
+    if (typeof body?.text !== 'string' || body.text.length > MAX_NOTES) throw new HttpError(400, 'Type what you want to do');
+    const todo = app.todos.create(body.text);
     if (!todo) throw new HttpError(400, 'Type what you want to do');
     return c.json({ id: todo.id });
   });
 
   r.patch('/todos/:id', async (c) => {
     const id = todoId(app, c);
-    const patch = await json<{ title?: string; notes?: string | null; status?: TodoStatus }>(c);
+    const patch = (await json<{ title?: unknown; notes?: unknown; status?: unknown } | null>(c)) ?? {};
+    // Validate everything before changing anything, so a bad field never leaves a partial update.
+    if (patch.title !== undefined && (typeof patch.title !== 'string' || !patch.title.trim())) throw new HttpError(400, 'Title cannot be empty');
+    if (patch.notes !== undefined && patch.notes !== null && (typeof patch.notes !== 'string' || patch.notes.length > MAX_NOTES)) {
+      throw new HttpError(400, 'Notes must be text up to 10,000 characters');
+    }
+    if (patch.status !== undefined && !TODO_STATUSES.includes(patch.status as TodoStatus)) throw new HttpError(400, 'Invalid status');
     if (patch.title !== undefined || patch.notes !== undefined) {
-      const title = patch.title?.trim();
-      if (patch.title !== undefined && !title) throw new HttpError(400, 'Title cannot be empty');
-      app.todos.store.update(id, { title: title?.slice(0, 200), notes: patch.notes === undefined ? undefined : patch.notes?.trim() || null });
+      app.todos.store.update(id, {
+        title: typeof patch.title === 'string' ? patch.title.trim().slice(0, 200) : undefined,
+        notes: patch.notes === undefined ? undefined : typeof patch.notes === 'string' ? patch.notes.trim() || null : null,
+      });
     }
-    if (patch.status !== undefined) {
-      if (!TODO_STATUSES.includes(patch.status)) throw new HttpError(400, 'Invalid status');
-      app.todos.setStatus(id, patch.status);
-    }
+    if (patch.status !== undefined) app.todos.setStatus(id, patch.status as TodoStatus);
     app.boardChanged();
     return c.json({ ok: true });
   });
@@ -86,7 +93,7 @@ export function todoRoutes(app: ThreadDesk): Hono {
   r.post('/todos/:id/unlink', async (c) => {
     const id = todoId(app, c);
     const body = await json<{ sessionId: string }>(c);
-    app.todos.store.unlink(id, sessionId(app, body.sessionId));
+    app.todos.store.reject(id, sessionId(app, body.sessionId, false));
     app.boardChanged();
     return c.json({ ok: true });
   });
@@ -94,7 +101,7 @@ export function todoRoutes(app: ThreadDesk): Hono {
   r.post('/todos/:id/reject', async (c) => {
     const id = todoId(app, c);
     const body = await json<{ sessionId: string }>(c);
-    app.todos.store.reject(id, sessionId(app, body.sessionId));
+    app.todos.store.reject(id, sessionId(app, body.sessionId, false));
     app.boardChanged();
     return c.json({ ok: true });
   });

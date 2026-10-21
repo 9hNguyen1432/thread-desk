@@ -74,14 +74,9 @@ export class TodoStore {
     this.db.transaction(() => ids.forEach((id, i) => update.run(i + 1, id)))();
   }
 
-  /** Todos that existed and were not yet closed on `day`, plus those closed that day. */
-  forDay(day: Day): TodoRow[] {
-    return this.db
-      .prepare(
-        `select * from todos where reported_day <= ? and (closed_day is null or closed_day >= ?)
-         order by case when closed_day is not null and closed_day <= ? then 1 else 0 end, sort`,
-      )
-      .all(day, day, day) as TodoRow[];
+  /** Every todo reported on or before `day`; which of them show that day is decided from history. */
+  reportedBy(day: Day): TodoRow[] {
+    return this.db.prepare('select * from todos where reported_day <= ? order by sort').all(day) as TodoRow[];
   }
 
   open(): TodoRow[] {
@@ -122,10 +117,7 @@ export class TodoStore {
     return res.changes > 0;
   }
 
-  unlink(todoId: number, sessionId: string): void {
-    this.db.prepare('delete from todo_links where todo_id = ? and session_id = ?').run(todoId, sessionId);
-  }
-
+  /** Unlinking is a decision too: the thread is never linked or suggested again unless re-linked by hand. */
   reject(todoId: number, sessionId: string): void {
     this.db.transaction(() => {
       this.db.prepare('delete from todo_links where todo_id = ? and session_id = ?').run(todoId, sessionId);

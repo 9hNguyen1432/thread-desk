@@ -7,13 +7,20 @@ function pad(n: number): string {
   return String(n).padStart(2, '0');
 }
 
-export function isDay(value: string): value is Day {
-  return DAY_RE.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00`));
+function format(date: Date): Day {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+export function isDay(value: string): value is Day {
+  if (!DAY_RE.test(value)) return false;
+  const [y, m, d] = value.split('-').map(Number) as [number, number, number];
+  return format(new Date(y, m - 1, d, 12)) === value;
+}
+
+/** Uses the same local-time boundary as `dayRange`, so both agree across DST changes. */
 export function dayOf(ts: number, startHour: number): Day {
-  const d = new Date(ts - startHour * 3_600_000);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const local = format(new Date(ts));
+  return ts < dayRange(local, startHour).start ? addDays(local, -1) : local;
 }
 
 /** [start, end) in epoch ms for a day, honouring local time zone and DST. */
@@ -26,8 +33,7 @@ export function dayRange(day: Day, startHour: number): { start: number; end: num
 
 export function addDays(day: Day, n: number): Day {
   const [y, m, d] = day.split('-').map(Number) as [number, number, number];
-  const date = new Date(y, m - 1, d + n, 12);
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return format(new Date(y, m - 1, d + n, 12));
 }
 
 /** Monday of the week containing `day`. */

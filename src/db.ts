@@ -4,6 +4,8 @@ import { join } from 'node:path';
 export type DB = Database.Database;
 
 const SCHEMA_VERSION = 3;
+/** Databases older than this need derived tables rebuilt instead of only new tables added. */
+const LAST_DESTRUCTIVE_VERSION = 2;
 
 const SCHEMA = `
 create table if not exists sessions (
@@ -142,7 +144,9 @@ export function openDb(dir: string): DB {
   db.pragma('foreign_keys = ON');
   const version = db.pragma('user_version', { simple: true }) as number;
   if (version !== SCHEMA_VERSION) {
-    if (version !== 0) dropDerived(db);
+    // Version 1 kept summaries inside `sessions`, so its derived tables must be rebuilt. Later
+    // versions only add tables, which keeps user choices such as hidden links.
+    if (version !== 0 && version < LAST_DESTRUCTIVE_VERSION) dropDerived(db);
     db.exec(SCHEMA);
     db.pragma(`user_version = ${SCHEMA_VERSION}`);
   }

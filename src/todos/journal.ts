@@ -1,4 +1,5 @@
 import { addDays, weekStart, type Day } from './day.js';
+import type { Card } from '../store.js';
 import type { TodoService } from './service.js';
 
 export interface CaptureLine {
@@ -47,9 +48,8 @@ function longDay(day: Day): string {
   return new Date(y, m - 1, d, 12).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-export function captureDay(svc: TodoService, day: Day): Capture {
-  const views = svc.view(day);
-  const cards = svc.cards();
+export function captureDay(svc: TodoService, day: Day, cards: Card[] = svc.cards()): Capture {
+  const views = svc.view(day, { cards });
   const cardById = new Map(cards.map((c) => [c.id, c]));
   const activity = svc.activityOn(day);
   const eventsToday = new Map<number, string[]>();
@@ -123,13 +123,14 @@ export function captureDay(svc: TodoService, day: Day): Capture {
 }
 
 export function weekSummary(svc: TodoService, day: Day): WeekSummary {
+  const cards = svc.cards();
   const start = weekStart(day);
   const projectMinutes = new Map<string, number>();
   const days: WeekSummary['days'] = [];
   for (let i = 0; i < 7; i++) {
     const d = addDays(start, i);
     if (d > svc.today()) break;
-    const c = captureDay(svc, d);
+    const c = captureDay(svc, d, cards);
     days.push({
       day: d,
       totalMinutes: c.totalMinutes,

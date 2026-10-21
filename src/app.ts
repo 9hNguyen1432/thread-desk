@@ -102,8 +102,16 @@ export class ThreadDesk {
     });
     this.indexing = { ...this.indexing, running: false };
     this.indexer.watch();
+    this.replayRecentForTodos();
     this.boardChanged();
     this.runPendingReindex();
+  }
+
+  /** Session changes are not routed to todos while indexing, so catch up on recent threads afterwards. */
+  private replayRecentForTodos(): void {
+    const since = Date.now() - 2 * 86_400_000;
+    const rows = this.db.prepare('select id from sessions where last_at >= ?').all(since) as { id: string }[];
+    this.todos.onSessionsChanged(rows.map((r) => r.id));
   }
 
   async stop(): Promise<void> {
@@ -447,6 +455,7 @@ export class ThreadDesk {
     await this.indexer.scanAll((done, total) => {
       this.indexing = { running: true, done, total };
     });
+    this.replayRecentForTodos();
   }
 
   retentionDays(): number {
