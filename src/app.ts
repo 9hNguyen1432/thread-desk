@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { AGENTS } from './agents.js';
 import { type Lifecycle } from './board.js';
 import { suggestCleanup, type CleanupSuggestion } from './cleanup.js';
 import { saveConfig, type Config } from './config.js';
@@ -19,6 +20,7 @@ import { branchName as draftBranch, draftStart, prepareLaunch, type LaunchReques
 import { Store, type Card } from './store.js';
 import type { TerminalAdapter } from './terminal/types.js';
 import { Indexer } from './transcript/indexer.js';
+import { jsonlSources, polledSources } from './transcript/sources.js';
 import { TodoService } from './todos/service.js';
 import { LabelStore, classifyWithAi, compileRules, resolveLabels } from './labels.js';
 import { AskRunner } from './ask.js';
@@ -76,16 +78,28 @@ export class ThreadDesk {
   ) {
     this.store = new Store(db);
     this.searcher = new Searcher(db);
-    this.indexer = new Indexer(db, config.claudeDir, config.links.ticketKeys, {
-      sessionsChanged: (ids) => this.onSessionsChanged(ids),
-      sessionsReopened: (ids) => {
-        for (const id of ids) {
-          this.bus.emit('toast', { message: 'Reopened after new activity', sessionId: id });
-          void this.live.syncBadges(id);
-        }
+    this.indexer = new Indexer(
+      db,
+      jsonlSources(config),
+      config.links.ticketKeys,
+      {
+        sessionsChanged: (ids) => this.onSessionsChanged(ids),
+        sessionsReopened: (ids) => {
+          for (const id of ids) {
+            this.bus.emit('toast', { message: 'Reopened after new activity', sessionId: id });
+            void this.live.syncBadges(id);
+          }
+        },
       },
-    });
-    this.live = new LiveState(agentSource ?? (() => fetchAgents(config.claudeBin)), terminal, config.pollIntervalMs, (id) => this.store.lifecycleOf(id));
+      polledSources(config),
+    );
+    this.live = new LiveState(
+      agentSource ?? (() => fetchAgents(config.claudeBin)),
+      terminal,
+      config.pollIntervalMs,
+      (id) => this.store.lifecycleOf(id),
+      (tab, taken) => this.store.guessSession(tab, taken),
+    );
     this.live.on('change', () => this.boardChanged());
     this.remote = new RemoteStatus(db, config, () => this.boardChanged());
     this.todos = new TodoService({
@@ -102,7 +116,7 @@ export class ThreadDesk {
       () => this.config,
       (id) => {
         const s = this.store.session(id);
-        return s ? { title: displayTitle(s), cwd: s.cwd, file: s.file, transcriptExists: s.transcript_exists === 1 } : null;
+        return s ? { agent: s.agent, title: displayTitle(s), cwd: s.cwd, file: s.file, transcriptExists: s.transcript_exists === 1 } : null;
       },
       () => this.boardChanged(),
       () => this.indexing.running,
@@ -290,7 +304,9 @@ export class ThreadDesk {
   }
 
   resumeCommand(sessionId: string): string {
-    return this.config.resumeCommand.replace(/\{sessionId\}/g, sessionId);
+    const agent = this.store.session(sessionId)?.agent ?? 'claude';
+    const template = agent === 'claude' ? this.config.resumeCommand : this.config.agents[agent].resumeCommand;
+    return template.replace(/\{sessionId\}/g, sessionId);
   }
 
   async open(id: string): Promise<OpenResult> {
@@ -313,7 +329,10 @@ export class ThreadDesk {
     if (card.agent?.pid) {
       throw new HttpError(409, `This session is already running in another terminal (pid ${card.agent.pid}); switch to it there`);
     }
-    if (!card.transcriptExists) throw new HttpError(409, 'Transcript was deleted by Claude Code (cleanupPeriodDays); it cannot be resumed');
+    if (!card.transcriptExists) {
+      const why = card.agentKind === 'claude' ? 'Transcript was deleted by Claude Code (cleanupPeriodDays)' : `${AGENTS[card.agentKind].label} no longer has this session`;
+      throw new HttpError(409, `${why}; it cannot be resumed`);
+    }
     if (this.live.terminal.name === 'none' || !card.cwd || !existsSync(card.cwd)) return copy();
     await this.live.terminal.open({ cwd: card.cwd, title: card.title, command });
     void this.live.refresh();
@@ -576,6 +595,7 @@ export class ThreadDesk {
   async status() {
     return {
       terminal: this.live.terminal.name,
+      agents: this.store.agentCounts(),
       integrations: await this.remote.integrations(),
       hooksInstalled: hooksInstalled(this.config.claudeDir),
       indexing: this.indexing,

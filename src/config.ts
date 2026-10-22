@@ -6,14 +6,32 @@ import { DEFAULT_LABEL_RULES, DEFAULT_LABELS, type LabelRule } from './labels.js
 
 export type OnDone = 'ask' | 'close' | 'keep';
 
+export const TERMINAL_CHOICES = ['auto', 'cmux', 'tmux', 'kitty', 'none'] as const;
+export type TerminalChoice = (typeof TERMINAL_CHOICES)[number];
+
+export interface OtherAgentConfig {
+  enabled: boolean;
+  /** Where the agent keeps its data; empty means its default location. */
+  home: string;
+  resumeCommand: string;
+}
+
 export interface Config {
   port: number;
   claudeDir: string;
   claudeBin: string;
   cmuxBin: string;
-  terminal: 'auto' | 'cmux' | 'none';
+  tmuxBin: string;
+  kittyBin: string;
+  terminal: TerminalChoice;
   pollIntervalMs: number;
+  /** Resume command for Claude Code sessions. */
   resumeCommand: string;
+  agents: {
+    codex: OtherAgentConfig;
+    pi: OtherAgentConfig;
+    copilot: OtherAgentConfig;
+  };
   onDone: OnDone;
   cleanup: {
     idleHours: number;
@@ -62,9 +80,16 @@ export const DEFAULT_CONFIG: Config = {
   claudeDir: join(homedir(), '.claude'),
   claudeBin: 'claude',
   cmuxBin: 'cmux',
+  tmuxBin: 'tmux',
+  kittyBin: 'kitten',
   terminal: 'auto',
   pollIntervalMs: 4000,
   resumeCommand: 'claude --resume {sessionId}',
+  agents: {
+    codex: { enabled: true, home: '', resumeCommand: 'codex resume {sessionId}' },
+    pi: { enabled: true, home: '', resumeCommand: 'pi --session {sessionId}' },
+    copilot: { enabled: true, home: '', resumeCommand: 'copilot --resume={sessionId}' },
+  },
   onDone: 'ask',
   cleanup: { idleHours: 24, prClosed: true, markedDone: true, ticketDone: true },
   links: { ticketKeys: [] },
@@ -97,6 +122,20 @@ export const DEFAULT_CONFIG: Config = {
   },
   day: { startHour: 4, idleGapMinutes: 20 },
 };
+
+/** Data directories of the other agents, honouring the environment variables each one documents. */
+export function agentHome(config: Config, kind: 'codex' | 'pi' | 'copilot'): string {
+  const configured = config.agents[kind].home.trim();
+  if (configured) return configured;
+  switch (kind) {
+    case 'codex':
+      return process.env.CODEX_HOME || join(homedir(), '.codex');
+    case 'pi':
+      return process.env.PI_CODING_AGENT_DIR || join(homedir(), '.pi', 'agent');
+    case 'copilot':
+      return join(homedir(), '.copilot');
+  }
+}
 
 export function dataDir(override?: string): string {
   return override ?? process.env.THREAD_DESK_HOME ?? join(homedir(), '.thread-desk');

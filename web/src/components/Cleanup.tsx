@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useActions } from '../actions';
 import { api } from '../api';
-import { ago, bytes } from '../format';
+import { ago, bytes, tabNoun } from '../format';
 import type { Card, CleanupSuggestion, Status } from '../types';
 import { AskThreads } from './AskThreads';
 import { Button, Empty } from './ui';
 
-export function Cleanup({ version, status, label, cards }: { version: number; status: Status | null; label: string; cards: Card[] }) {
+export function Cleanup({ version, status, label, agent, cards }: { version: number; status: Status | null; label: string; agent: string; cards: Card[] }) {
   const actions = useActions();
   const [all, setItems] = useState<CleanupSuggestion[]>([]);
-  const items = useMemo(() => (!label ? all : all.filter((i) => (label === '-' ? !i.label : i.label === label))), [all, label]);
+  const items = useMemo(() => {
+    const shown = agent ? new Set(cards.map((c) => c.id)) : null;
+    return all.filter((i) => (!shown || shown.has(i.sessionId)) && (!label || (label === '-' ? !i.label : i.label === label)));
+  }, [all, label, agent, cards]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [markDone, setMarkDone] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -62,8 +65,8 @@ export function Cleanup({ version, status, label, cards }: { version: number; st
 
   if (status?.terminal === 'none') {
     return withDialog(
-      <Empty title="Cleanup needs cmux">
-        Thread Desk closes tabs through cmux. Without it you can still mark threads done, and ask threads questions.
+      <Empty title="Cleanup needs a terminal it can control">
+        Thread Desk closes tabs through cmux, tmux or kitty. Without one you can still mark threads done, and ask threads questions.
         <div className="mt-3">{askButton}</div>
       </Empty>,
     );
@@ -144,7 +147,9 @@ export function Cleanup({ version, status, label, cards }: { version: number; st
 
       {confirming && (
         <div role="alertdialog" className="mb-3 flex items-center gap-3 rounded border border-danger/50 bg-strip p-3 text-[13px]">
-          <span className="flex-1">Close {chosen.length} cmux tabs now? Running processes in them will stop.</span>
+          <span className="flex-1">
+            Close {chosen.length} {tabNoun(status?.terminal ?? 'none', chosen.length !== 1)} now? Running processes in them will stop.
+          </span>
           <Button tone="quiet" onClick={() => setConfirming(false)}>
             Keep them
           </Button>

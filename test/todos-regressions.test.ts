@@ -14,8 +14,9 @@ import { closedOn, statusOnDay, visibleOn } from '../src/todos/history.js';
 import { captureDay } from '../src/todos/journal.js';
 import { TodoService } from '../src/todos/service.js';
 import { Indexer } from '../src/transcript/indexer.js';
+import { claudeSource } from '../src/transcript/sources.js';
 
-const live: LiveSnapshot = { agents: new Map(), tabs: [], tabBySession: new Map(), sessionByTab: new Map(), terminal: 'none', errors: [], at: 0 };
+const live: LiveSnapshot = { agents: new Map(), tabs: [], tabBySession: new Map(), sessionByTab: new Map(), guessedTabs: new Set(), terminal: 'none', errors: [], at: 0 };
 const MIN = 60_000;
 const A = '11111111-1111-4111-8111-111111111111';
 const B = '22222222-2222-4222-8222-222222222222';
@@ -110,7 +111,7 @@ describe('TodoService regressions', () => {
       cards: () => store.cards({ includeContinued: true }, live, new Map()),
       changed: () => undefined,
     });
-    indexer = new Indexer(db, claudeDir, config.links.ticketKeys, {
+    indexer = new Indexer(db, [claudeSource(claudeDir)], config.links.ticketKeys, {
       sessionsChanged: (ids) => svc.onSessionsChanged(ids),
       sessionsReopened: () => undefined,
     });
@@ -235,7 +236,7 @@ describe('WIP for work done earlier the same day', () => {
       cards: () => store.cards({ includeContinued: true }, live, new Map()),
       changed: () => undefined,
     });
-    const indexer = new Indexer(db, claudeDir, [], { sessionsChanged: () => undefined, sessionsReopened: () => undefined });
+    const indexer = new Indexer(db, [claudeSource(claudeDir)], [], { sessionsChanged: () => undefined, sessionsReopened: () => undefined });
     const { start } = dayRange(svc.today(), config.day.startHour);
     const ts = Math.max(start + MIN, Date.now() - 10 * MIN);
     writeFileSync(join(dir, `${A}.jsonl`), JSON.stringify({ type: 'user', timestamp: new Date(ts).toISOString(), cwd: '/w/app', sessionId: A, message: { role: 'user', content: 'early start' } }) + '\n');

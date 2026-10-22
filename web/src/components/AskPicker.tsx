@@ -27,7 +27,8 @@ export function AskPicker({
 }) {
   const actions = useActions();
   const candidates = useMemo(
-    () => cards.filter((c) => c.transcriptExists && (c.tab || c.agent || (c.lastAt ?? 0) > Date.now() - 14 * 86_400_000)),
+    // Asking forks a session with `claude -p`, which only works for Claude Code threads.
+    () => cards.filter((c) => c.agentKind === 'claude' && c.transcriptExists && (c.tab || c.agent || (c.lastAt ?? 0) > Date.now() - 14 * 86_400_000)),
     [cards],
   );
   const [picked, setPicked] = useState<Set<string>>(() => new Set(preselected.filter((id) => candidates.some((c) => c.id === id))));

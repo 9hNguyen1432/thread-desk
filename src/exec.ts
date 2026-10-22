@@ -10,6 +10,7 @@ export class RunError extends Error {
     message: string,
     readonly stderr: string,
     readonly code: number | string | null,
+    readonly stdout = '',
   ) {
     super(message);
   }
@@ -40,7 +41,7 @@ export function run(bin: string, args: string[], opts: RunOptions = {}): Promise
       (error, stdout, stderr) => {
         if (error) {
           const code = (error as NodeJS.ErrnoException).code ?? null;
-          reject(new RunError(`${bin} ${args.join(' ')} failed: ${error.message}`, stderr, code));
+          reject(new RunError(`${bin} ${args.join(' ')} failed: ${error.message}`, stderr, code, stdout));
           return;
         }
         resolve({ stdout, stderr });

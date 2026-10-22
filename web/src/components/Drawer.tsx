@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useActions } from '../actions';
 import { api } from '../api';
-import { COLUMN_COLOR, COLUMN_LABEL, ago, bytes } from '../format';
+import { AGENT_LABEL, COLUMN_COLOR, COLUMN_LABEL, ago, bytes } from '../format';
 import type { Card, Lifecycle, LinkView, Message, Status, TodosResponse } from '../types';
 import { HandoffModal } from './HandoffModal';
 import { Button, LinkChip, modalOpen } from './ui';
@@ -194,6 +194,7 @@ export function Drawer({ id, status, version }: { id: string; status: Status | n
             <span className="size-2 rounded-full" style={{ background: COLUMN_COLOR[card.column] }} />
             {COLUMN_LABEL[card.column]}
           </span>
+          <span>{AGENT_LABEL[card.agentKind]}</span>
           {card.agent?.waitingFor && <span>waiting for {card.agent.waitingFor}</span>}
           {card.tab && <span>{bytes(card.tab.memoryBytes)} in {card.tab.ref}</span>}
           {card.tab && card.closeBlock && <span>{card.closeBlock}</span>}
@@ -206,7 +207,7 @@ export function Drawer({ id, status, version }: { id: string; status: Status | n
             </Button>
           )}
           {card.tab && (
-            <Button onClick={() => void actions.closeTab(card)} disabled={Boolean(card.closeBlock)} title={card.closeBlock ?? 'Close this cmux tab'}>
+            <Button onClick={() => void actions.closeTab(card)} disabled={Boolean(card.closeBlock)} title={card.closeBlock ?? 'Close this tab'}>
               Close tab
             </Button>
           )}

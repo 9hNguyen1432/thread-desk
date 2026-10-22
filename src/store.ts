@@ -1,4 +1,5 @@
 import { basename } from 'node:path';
+import type { AgentKind } from './agents.js';
 import type { DB } from './db.js';
 import { closeBlocker, deriveColumn, isLive, liveStatus, type Column, type Lifecycle } from './board.js';
 import type { LinkKind, LinkSource } from './links.js';
@@ -6,7 +7,7 @@ import { SOURCE_PRIORITY } from './links.js';
 import type { LiveSnapshot } from './live/state.js';
 import type { HookState } from './board.js';
 import type { ThreadLabel } from './labels.js';
-import type { LiveStatus } from './terminal/types.js';
+import type { LiveStatus, Tab } from './terminal/types.js';
 import { displayTitle } from './transcript/parse.js';
 import type { SessionRow } from './transcript/indexer.js';
 
@@ -30,6 +31,8 @@ export interface Recap {
 
 export interface Card {
   id: string;
+  /** Which coding agent this session belongs to. */
+  agentKind: AgentKind;
   title: string;
   cwd: string | null;
   project: string | null;
@@ -166,6 +169,22 @@ export class Store {
     return (this.db.prepare('select * from sessions where id = ?').get(id) as SessionRow | undefined) ?? null;
   }
 
+  /**
+   * For agents that cannot say which session a process runs: the most recently active session of
+   * that agent in the tab's folder since the process started, skipping sessions already matched.
+   */
+  guessSession(tab: Tab, taken: ReadonlySet<string>): string | null {
+    if (!tab.agentKind || !tab.cwd) return null;
+    const since = tab.agentStartedAt !== null ? tab.agentStartedAt - 60_000 : 0;
+    const rows = this.db
+      .prepare(
+        `select id from sessions where agent = ? and cwd = ? and coalesce(last_at, first_at, 0) >= ?
+         order by coalesce(last_at, first_at, 0) desc limit 10`,
+      )
+      .all(tab.agentKind, tab.cwd, since) as { id: string }[];
+    return rows.find((r) => !taken.has(r.id))?.id ?? null;
+  }
+
   /** Follows `continued-in` records to the newest session of a thread. */
   latestInChain(id: string): string {
     let current = id;
@@ -187,6 +206,12 @@ export class Store {
       )
       .all() as { project: string; count: number }[];
     return rows.map((r) => ({ project: r.project, name: basename(r.project), count: r.count }));
+  }
+
+  agentCounts(): { kind: AgentKind; count: number }[] {
+    return this.db
+      .prepare('select agent as kind, count(*) as count from sessions where continued_in is null group by agent order by count desc')
+      .all() as { kind: AgentKind; count: number }[];
   }
 
   messages(id: string, limit: number): { role: string; ts: number | null; text: string }[] {
@@ -290,6 +315,7 @@ function toCard(row: Row, linkRows: LinkRow[], live: LiveSnapshot, hook: HookSta
   const mentioned = all.filter((l) => !PRIMARY_SOURCES.has(l.source)).sort((a, b) => b.mentions - a.mentions);
   return {
     id: row.id,
+    agentKind: row.agent,
     title: displayTitle(row),
     cwd: row.cwd,
     project: row.project,
@@ -315,7 +341,7 @@ function toCard(row: Row, linkRows: LinkRow[], live: LiveSnapshot, hook: HookSta
       ? { kind: agent.kind, pid: agent.pid, status: agent.status, state: agent.state, waitingFor: agent.waitingFor }
       : null,
     tab: tab ? { ref: tab.ref, windowRef: tab.windowRef, title: tab.title, memoryBytes: tab.memoryBytes } : null,
-    closeBlock: tab ? closeBlocker(agent, tab, status, live.errors) : null,
+    closeBlock: tab ? closeBlocker(agent, tab, status, live.errors, row.last_at, Date.now(), live.guessedTabs.has(tab.ref)) : null,
     todos: [],
     label: null,
     links: primary,

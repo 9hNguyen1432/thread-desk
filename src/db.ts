@@ -3,13 +3,14 @@ import { join } from 'node:path';
 
 export type DB = Database.Database;
 
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 /** Databases older than this need derived tables rebuilt instead of only new tables added. */
 const LAST_DESTRUCTIVE_VERSION = 2;
 
 const SCHEMA = `
 create table if not exists sessions (
   id text primary key,
+  agent text not null default 'claude',
   file text not null,
   cwd text,
   project text,
@@ -183,9 +184,16 @@ export function openDb(dir: string): DB {
     // versions only add tables, which keeps user choices such as hidden links.
     if (version !== 0 && version < LAST_DESTRUCTIVE_VERSION) dropDerived(db);
     db.exec(SCHEMA);
+    addMissingColumns(db);
     db.pragma(`user_version = ${SCHEMA_VERSION}`);
   }
   return db;
+}
+
+/** `create table if not exists` leaves older tables alone, so columns added later are added here. */
+function addMissingColumns(db: DB): void {
+  const sessionColumns = new Set((db.prepare('pragma table_info(sessions)').all() as { name: string }[]).map((c) => c.name));
+  if (!sessionColumns.has('agent')) db.exec("alter table sessions add column agent text not null default 'claude'");
 }
 
 export function dropDerived(db: DB): void {

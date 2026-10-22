@@ -1,3 +1,4 @@
+import { AGENTS } from './agents.js';
 import type { AgentInfo } from './live/agents.js';
 import type { LiveStatus, Tab } from './terminal/types.js';
 
@@ -13,7 +14,7 @@ export interface HookState {
 }
 
 export function isLive(agent: AgentInfo | undefined, tab: Tab | undefined): boolean {
-  if (tab?.claudePid) return true;
+  if (tab?.agentPid) return true;
   if (!agent) return false;
   if (agent.kind === 'background') return agent.state === 'working' || agent.state === 'blocked';
   return agent.pid !== null;
@@ -29,23 +30,40 @@ export function liveStatus(agent: AgentInfo | undefined, tab: Tab | undefined, h
   return 'idle';
 }
 
+/** Other agents report no busy/idle state, so a quiet transcript stands in for it. */
+export const OTHER_AGENT_QUIET_MS = 10 * 60_000;
+const OTHER_AGENT_BUSY_CPU = 5;
+
 /**
  * Closing a tab must fail closed: it is only allowed on a positive signal that nothing but an idle
- * Claude session (or an idle shell) lives in the tab and that live status is current.
+ * agent session (or an idle shell) lives in the tab and that live status is current.
  */
 export function closeBlocker(
   agent: AgentInfo | undefined,
   tab: Tab | undefined,
   live: LiveStatus | null,
   liveErrors: readonly string[],
+  lastActivityAt: number | null = null,
+  now = Date.now(),
+  guessed = false,
 ): string | null {
   if (!tab) return 'No open terminal tab for this thread';
   if (liveErrors.length > 0) return 'Live status is unavailable right now; try again in a moment';
   if (tab.closeBlock) return tab.closeBlock;
+  // A guessed match may point at another session's tab, so its quiet transcript proves nothing.
+  if (guessed) return 'Cannot tell for sure which session this tab runs; close it in the terminal';
+  if (tab.agentPid !== null && tab.agentKind !== null && tab.agentKind !== 'claude') {
+    const name = AGENTS[tab.agentKind].label;
+    if (lastActivityAt === null || now - lastActivityAt < OTHER_AGENT_QUIET_MS) {
+      return `${name} was active in the last ${OTHER_AGENT_QUIET_MS / 60_000} minutes and may still be working`;
+    }
+    if (tab.cpuPercent > OTHER_AGENT_BUSY_CPU) return `${name} is still using CPU in this tab`;
+    return null;
+  }
   if (live === 'running') return 'Claude is still working in this tab; stop it first';
   if (agent?.status === 'waiting' || agent?.state === 'blocked') return 'Claude is waiting for an answer in this tab';
   // The cmux sidebar alone cannot tell a finished turn from a permission prompt mid-turn.
-  if (tab.claudePid !== null && !agent) return 'Cannot tell whether Claude is busy in this tab';
+  if (tab.agentPid !== null && !agent) return 'Cannot tell whether Claude is busy in this tab';
   if (agent && agent.status === null && agent.kind !== 'background') return 'Cannot tell whether Claude is busy in this tab';
   return null;
 }

@@ -152,7 +152,10 @@ export class DemoAdapter implements TerminalAdapter {
       cwd: t.cwd,
       memoryBytes: t.memoryBytes,
       cpuPercent: 0,
-      claudePid: 100_000 + i,
+      agentPid: 100_000 + i,
+      agentKind: 'claude',
+      agentStartedAt: null,
+      agentSessionHint: null,
       agentStatus: t.status,
       closeBlock: null,
     };

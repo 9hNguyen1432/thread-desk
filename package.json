@@ -1,7 +1,7 @@
 {
   "name": "thread-desk",
   "version": "0.2.0",
-  "description": "A local Kanban board for AI coding agents running in cmux: see, find, resume and clean up your Claude Code threads.",
+  "description": "A local Kanban board for AI coding agents in cmux, tmux or kitty: see, find, resume and clean up your Claude Code, Codex, Pi and Copilot threads.",
   "license": "MIT",
   "author": "Chinh Nguyen",
   "homepage": "https://github.com/9hNguyen1432/thread-desk#readme",
@@ -24,7 +24,12 @@
   },
   "keywords": [
     "claude-code",
+    "codex",
+    "pi",
+    "copilot-cli",
     "cmux",
+    "tmux",
+    "kitty",
     "ai-agents",
     "coding-agents",
     "sessions",
@@ -46,6 +51,7 @@
     "@hono/node-server": "^2.1.5",
     "better-sqlite3": "^13.0.3",
     "chokidar": "^5.0.0",
+    "fzstd": "^0.1.1",
     "hono": "^4.13.13",
     "open": "^11.0.4"
   },

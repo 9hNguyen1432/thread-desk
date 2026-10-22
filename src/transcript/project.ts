@@ -27,3 +27,15 @@ export async function resolveProject(cwd: string): Promise<string> {
   cache.set(cwd, project);
   return project;
 }
+
+/** The branch currently checked out in `cwd`, or null outside a git repo or on a detached HEAD. */
+export async function resolveBranch(cwd: string): Promise<string | null> {
+  if (!existsSync(cwd)) return null;
+  try {
+    const { stdout } = await run('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd, timeoutMs: 5000 });
+    const branch = stdout.trim();
+    return branch && branch !== 'HEAD' ? branch : null;
+  } catch {
+    return null;
+  }
+}

@@ -1,4 +1,5 @@
 import { existsSync, statSync, writeFileSync } from 'node:fs';
+import { AGENTS, type AgentKind } from './agents.js';
 import { dirname, isAbsolute } from 'node:path';
 import type { Config } from './config.js';
 import type { DB } from './db.js';
@@ -82,6 +83,8 @@ export function combineAnswers(items: AskItem[], prompt: string): string {
 }
 
 export interface SessionInfo {
+  /** Asking resumes a fork with `claude -p`, so only Claude Code sessions can be asked. */
+  agent?: AgentKind;
   title: string;
   cwd: string | null;
   file: string | null;
@@ -126,7 +129,11 @@ export class AskRunner {
     if (!MODEL_RE.test(model)) throw new Error('Unknown model');
     const unique = [...new Set(sessionIds)];
     if (unique.length === 0 || unique.length > 100) throw new Error('Pick between 1 and 100 threads');
-    for (const id of unique) if (!this.session(id)?.transcriptExists) throw new Error('One of the threads has no transcript left to ask');
+    for (const id of unique) {
+      const info = this.session(id);
+      if (!info?.transcriptExists) throw new Error('One of the threads has no transcript left to ask');
+      if (info.agent && info.agent !== 'claude') throw new Error(`Only Claude Code threads can be asked; "${info.title}" is a ${AGENTS[info.agent].label} thread`);
+    }
     const id = this.db.transaction(() => {
       const { lastInsertRowid } = this.db
         .prepare("insert into ask_batches (prompt, model, status, created_at) values (?, ?, 'running', ?)")

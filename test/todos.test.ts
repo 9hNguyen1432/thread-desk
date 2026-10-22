@@ -14,8 +14,9 @@ import { captureDay, formatMinutes } from '../src/todos/journal.js';
 import { significantWords } from '../src/todos/matching.js';
 import { TodoService, splitTodoText } from '../src/todos/service.js';
 import { Indexer } from '../src/transcript/indexer.js';
+import { claudeSource } from '../src/transcript/sources.js';
 
-const live: LiveSnapshot = { agents: new Map(), tabs: [], tabBySession: new Map(), sessionByTab: new Map(), terminal: 'none', errors: [], at: 0 };
+const live: LiveSnapshot = { agents: new Map(), tabs: [], tabBySession: new Map(), sessionByTab: new Map(), guessedTabs: new Set(), terminal: 'none', errors: [], at: 0 };
 const MIN = 60_000;
 
 function at(day: string, hh: number, mm = 0): number {
@@ -108,7 +109,7 @@ describe('TodoService', () => {
       cards: () => store.cards({ includeContinued: true }, live, new Map()),
       changed: () => undefined,
     });
-    indexer = new Indexer(db, claudeDir, config.links.ticketKeys, {
+    indexer = new Indexer(db, [claudeSource(claudeDir)], config.links.ticketKeys, {
       sessionsChanged: (ids) => svc.onSessionsChanged(ids),
       sessionsReopened: () => undefined,
     });

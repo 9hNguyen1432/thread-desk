@@ -1,5 +1,7 @@
 import { platform } from 'node:os';
+import { agentOfProcess, isAgentKind, sessionIdInCommand, type AgentKind } from '../agents.js';
 import { run, runJson, type RunError } from '../exec.js';
+import { listProcesses, SHELLS, type ProcInfo } from './processes.js';
 import type { LiveStatus, OpenOptions, Tab, TerminalAdapter } from './types.js';
 
 interface CmuxTag {
@@ -57,8 +59,6 @@ export function cmuxStatus(value: string | undefined): LiveStatus | null {
   }
 }
 
-const SHELLS = new Set(['zsh', 'bash', 'fish', 'sh', 'dash', 'ksh', 'tcsh', 'nu', 'login']);
-
 function flatten(processes: CmuxProcess[] | undefined): CmuxProcess[] {
   const out: CmuxProcess[] = [];
   const walk = (list: CmuxProcess[] | undefined) => {
@@ -71,47 +71,68 @@ function flatten(processes: CmuxProcess[] | undefined): CmuxProcess[] {
   return out;
 }
 
-export function isClaudeProcess(p: CmuxProcess): boolean {
-  const path = p.path ?? '';
-  return /\/claude\/versions\/[^/]+$/.test(path) || /\/claude$/.test(path) || p.name === 'claude';
-}
-
 function isShell(p: CmuxProcess): boolean {
   return SHELLS.has((p.name ?? '').replace(/^-/, ''));
 }
 
-/**
- * A workspace is only safe to close when its single terminal is in the foreground of Claude or of an
- * idle shell. Splits, extra tabs, browsers or any other foreground program (a dev server, an editor)
- * would be killed along with it.
- */
-export function inspectWorkspace(ws: CmuxTopWorkspace): { claudePid: number | null; closeBlock: string | null } {
-  const surfaces = (ws.panes ?? []).flatMap((p) => p.surfaces ?? []);
-  const tagPid = ws.tags?.find((t) => t.key === 'claude_code')?.pid;
-  let claudePid = typeof tagPid === 'number' ? tagPid : null;
-  if (surfaces.length !== 1) {
-    return { claudePid, closeBlock: `This workspace has ${surfaces.length} panes or tabs; close it in cmux instead` };
-  }
-  const surface = surfaces[0]!;
-  if (surface.type && surface.type !== 'terminal') return { claudePid, closeBlock: 'This tab is not a terminal' };
-  const foreground = new Set(surface.foreground_pgids ?? []);
-  const processes = flatten(surface.processes);
-  const leaders = processes.filter((p) => p.pid !== undefined && foreground.has(p.pid));
-  claudePid ??= leaders.find(isClaudeProcess)?.pid ?? null;
-  if (leaders.length === 0) return { claudePid, closeBlock: 'Cannot tell what is running in this tab' };
-  const other = leaders.find((p) => !isClaudeProcess(p) && !isShell(p));
-  if (other) return { claudePid, closeBlock: `${other.name ?? 'Another program'} is running in this tab` };
-  return { claudePid, closeBlock: null };
+export interface WorkspaceAgent {
+  agentPid: number | null;
+  agentKind: AgentKind | null;
+  agentStartedAt: number | null;
+  agentSessionHint: string | null;
+  closeBlock: string | null;
 }
 
-export function parseTop(top: CmuxTop, cwdByRef: Map<string, string | null>): Tab[] {
+/** Foreground process-group leaders of a workspace's only terminal; empty for splits and browsers. */
+export function foregroundLeaders(ws: CmuxTopWorkspace): CmuxProcess[] {
+  const surfaces = (ws.panes ?? []).flatMap((p) => p.surfaces ?? []);
+  if (surfaces.length !== 1) return [];
+  const foreground = new Set(surfaces[0]!.foreground_pgids ?? []);
+  return flatten(surfaces[0]!.processes).filter((p) => p.pid !== undefined && foreground.has(p.pid));
+}
+
+/**
+ * A workspace is only safe to close when its single terminal is in the foreground of a coding agent
+ * or of an idle shell. Splits, extra tabs, browsers or any other foreground program (a dev server,
+ * an editor) would be killed along with it. `procs` adds command lines for agents started by node.
+ */
+export function inspectWorkspace(ws: CmuxTopWorkspace, procs: Map<number, ProcInfo> = new Map()): WorkspaceAgent {
+  const surfaces = (ws.panes ?? []).flatMap((p) => p.surfaces ?? []);
+  const tagPid = ws.tags?.find((t) => t.key === 'claude_code')?.pid;
+  const found: WorkspaceAgent = {
+    agentPid: typeof tagPid === 'number' ? tagPid : null,
+    agentKind: typeof tagPid === 'number' ? 'claude' : null,
+    agentStartedAt: typeof tagPid === 'number' ? (procs.get(tagPid)?.startedAt ?? null) : null,
+    agentSessionHint: typeof tagPid === 'number' ? sessionIdInCommand(procs.get(tagPid)?.command) : null,
+    closeBlock: null,
+  };
+  if (surfaces.length !== 1) {
+    return { ...found, closeBlock: `This workspace has ${surfaces.length} panes or tabs; close it in cmux instead` };
+  }
+  const surface = surfaces[0]!;
+  if (surface.type && surface.type !== 'terminal') return { ...found, closeBlock: 'This tab is not a terminal' };
+  const leaders = foregroundLeaders(ws).map((p) => ({ p, kind: agentOfProcess({ ...p, command: procs.get(p.pid!)?.command }) }));
+  const agent = leaders.find((l) => l.kind !== null);
+  if (found.agentPid === null && agent) {
+    found.agentPid = agent.p.pid!;
+    found.agentKind = agent.kind;
+    found.agentStartedAt = procs.get(agent.p.pid!)?.startedAt ?? null;
+    found.agentSessionHint = sessionIdInCommand(procs.get(agent.p.pid!)?.command);
+  }
+  if (leaders.length === 0) return { ...found, closeBlock: 'Cannot tell what is running in this tab' };
+  const other = leaders.find((l) => l.kind === null && !isShell(l.p));
+  if (other) return { ...found, closeBlock: `${other.p.name ?? 'Another program'} is running in this tab` };
+  return found;
+}
+
+export function parseTop(top: CmuxTop, cwdByRef: Map<string, string | null>, procs: Map<number, ProcInfo> = new Map()): Tab[] {
   const tabs: Tab[] = [];
   for (const window of top.windows ?? []) {
     if (!window.ref) continue;
     for (const ws of window.workspaces ?? []) {
       if (!ws.ref) continue;
       const claudeTag = ws.tags?.find((t) => t.key === 'claude_code');
-      const { claudePid, closeBlock } = inspectWorkspace(ws);
+      const { agentPid, agentKind, agentStartedAt, agentSessionHint, closeBlock } = inspectWorkspace(ws, procs);
       tabs.push({
         ref: ws.ref,
         windowRef: window.ref,
@@ -119,8 +140,11 @@ export function parseTop(top: CmuxTop, cwdByRef: Map<string, string | null>): Ta
         cwd: cwdByRef.get(ws.ref) ?? null,
         memoryBytes: ws.resources?.memory_bytes ?? 0,
         cpuPercent: ws.resources?.cpu_percent ?? 0,
-        claudePid,
-        agentStatus: cmuxStatus(claudeTag?.value),
+        agentPid,
+        agentKind,
+        agentStartedAt,
+        agentSessionHint,
+        agentStatus: agentKind === 'claude' ? cmuxStatus(claudeTag?.value) : null,
         closeBlock,
       });
     }
@@ -164,7 +188,17 @@ export class CmuxAdapter implements TerminalAdapter {
       });
       for (const ws of list.workspaces ?? []) if (ws.ref) cwdByRef.set(ws.ref, ws.current_directory ?? null);
     }
-    return parseTop(top, cwdByRef);
+    // cmux only knows executable names; node-based agents are told apart by their command lines.
+    const leaderPids = new Set<number>();
+    for (const window of top.windows ?? []) {
+      for (const ws of window.workspaces ?? []) {
+        for (const p of foregroundLeaders(ws)) leaderPids.add(p.pid!);
+        const tagPid = ws.tags?.find((t) => t.key === 'claude_code')?.pid;
+        if (typeof tagPid === 'number') leaderPids.add(tagPid);
+      }
+    }
+    const procs = await listProcesses([...leaderPids]).catch(() => new Map<number, ProcInfo>());
+    return parseTop(top, cwdByRef, procs);
   }
 
   async sessionIdForTab(tab: Tab): Promise<string | null> {
@@ -175,7 +209,9 @@ export class CmuxAdapter implements TerminalAdapter {
         { timeoutMs: 5000 },
       );
       const binding = res.resume_binding;
-      return binding?.kind === 'claude' && binding.checkpoint_id ? binding.checkpoint_id : null;
+      // Only trust a binding for the agent actually running in the tab.
+      if (!binding?.checkpoint_id || !isAgentKind(binding.kind)) return null;
+      return tab.agentKind === null || tab.agentKind === binding.kind ? binding.checkpoint_id : null;
     } catch {
       return null;
     }

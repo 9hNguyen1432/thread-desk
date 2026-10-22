@@ -19,9 +19,10 @@ src/
   cli.ts              entry point and commands
   app.ts              wires indexer, live state, integrations and actions
   server.ts           HTTP routes, access key, host/origin checks, SSE
-  transcript/         JSONL parser and incremental indexer
+  agents.ts           the coding agents Thread Desk knows and how to spot their processes
+  transcript/         per-agent transcript readers (sources.ts) and the incremental indexer
   live/               claude agents polling and live snapshot
-  terminal/           terminal adapters (cmux, none)
+  terminal/           terminal adapters (cmux, tmux, kitty, none)
   remote/             GitHub, Jira, Linear, Slack
   board.ts            status and column rules
   cleanup.ts          which tabs are safe to close
@@ -33,12 +34,20 @@ test/                 vitest
 
 Implement `TerminalAdapter` from `src/terminal/types.ts`:
 
-- `listTabs()` returns open tabs with memory, the Claude process id (if any) and a status hint.
-- `sessionIdForTab()` maps a tab to a Claude session when the process id cannot be matched with
-  `claude agents --json`.
+- `listTabs()` returns open tabs with memory, the agent in the foreground (process id, kind, start time,
+  and a session id from its command line if any) and why closing would be unsafe. `processes.ts` and
+  `agentOfProcess()` do most of this from `ps`.
+- `sessionIdForTab()` maps a tab to a session when the terminal records it (cmux does); return null otherwise.
 - `focus`, `close`, `open` and `setBadge` perform actions; throw a clear error if the terminal cannot.
 
-Then pick it in `pickTerminal()` in `src/cli.ts`. tmux, WezTerm, Kitty and iTerm adapters are welcome.
+Then pick it in `pickTerminal()` in `src/cli.ts`. WezTerm, Zellij, Ghostty and iTerm adapters are welcome.
+
+## Adding a coding agent
+
+1. Add it to `AGENTS` in `src/agents.ts` with a `matchesProcess` test for its command line.
+2. Write a line parser that turns its transcript into `ParsedLine`s (see `src/transcript/codex.ts`), or a
+   `PolledSource` if it keeps sessions in a database (see `copilot.ts`).
+3. Register it in `src/transcript/sources.ts` and give it a config entry with a default resume command.
 
 ## Adding a tracker
 

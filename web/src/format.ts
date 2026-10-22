@@ -1,4 +1,4 @@
-import type { Column } from './types';
+import type { AgentKind, Column, TerminalName } from './types';
 
 export function bytes(n: number): string {
   if (n >= 1e9) return `${(n / 1e9).toFixed(1)} GB`;
@@ -40,8 +40,8 @@ export const COLUMN_COLOR: Record<Column, string> = {
 };
 
 export const COLUMN_HINT: Record<Column, string> = {
-  needs_you: 'Claude finished or asked something. Your move.',
-  running: 'Claude is working right now.',
+  needs_you: 'The agent finished or asked something. Your move.',
+  running: 'An agent is working right now.',
   idle: 'Open in a tab, nothing pending.',
   paused: 'No tab open. Resume any time.',
   waiting_others: 'Blocked on someone else. Drop a thread here.',
@@ -89,4 +89,17 @@ export function labelColor(name: string): string {
   let h = 0;
   for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return LABEL_PALETTE[h % LABEL_PALETTE.length]!;
+}
+
+export const AGENT_LABEL: Record<AgentKind, string> = {
+  claude: 'Claude',
+  codex: 'Codex',
+  pi: 'Pi',
+  copilot: 'Copilot',
+};
+
+/** What one open terminal session is called in each terminal. */
+export function tabNoun(terminal: TerminalName, plural = false): string {
+  const noun = terminal === 'tmux' ? 'tmux window' : terminal === 'kitty' ? 'kitty tab' : terminal === 'cmux' ? 'cmux tab' : 'terminal tab';
+  return plural ? `${noun}s` : noun;
 }

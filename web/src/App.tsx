@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActionsContext, type Actions } from './actions';
 import { api, token } from './api';
 import { BoardView } from './components/Board';
@@ -13,7 +13,7 @@ import { Settings } from './components/Settings';
 import { StartModal } from './components/StartModal';
 import { Tickets } from './components/Tickets';
 import { Button, Kbd, Modal } from './components/ui';
-import { bytes } from './format';
+import { AGENT_LABEL, bytes, tabNoun } from './format';
 import type { Board, Card, Lifecycle, OpenResult, Status, TabInfo } from './types';
 
 type View = 'board' | 'today' | 'inbox' | 'cleanup' | 'tickets' | 'log' | 'digest';
@@ -63,11 +63,15 @@ function isTyping(target: EventTarget | null): boolean {
 
 export function App() {
   const [status, setStatus] = useState<Status | null>(null);
+  // Actions are memoized once; they read the terminal name through this ref.
+  const statusRef = useRef(status);
+  statusRef.current = status;
   const [board, setBoard] = useState<Board | null>(null);
   const [view, setView] = useState<View>(() => stored('td.view', 'board') as View);
   const [project, setProject] = useState(() => stored('td.project', ''));
   const [showArchived, setShowArchived] = useState(false);
   const [label, setLabel] = useState(() => stored('td.label', ''));
+  const [agentFilter, setAgentFilter] = useState(() => stored('td.agent', ''));
   const [selected, setSelected] = useState<string | null>(null);
   const [palette, setPalette] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
@@ -127,6 +131,7 @@ export function App() {
   useEffect(() => store('td.view', view), [view]);
   useEffect(() => store('td.project', project), [project]);
   useEffect(() => store('td.label', label), [label]);
+  useEffect(() => store('td.agent', agentFilter), [agentFilter]);
 
   const actions: Actions = useMemo(
     () => ({
@@ -137,7 +142,7 @@ export function App() {
         try {
           const r = await api.post<OpenResult>(`/sessions/${card.id}/open`);
           if (r.action === 'focused') toast(`Switched to “${card.title}”`);
-          else if (r.action === 'opened') toast('Resumed in a new cmux tab');
+          else if (r.action === 'opened') toast(`Resumed in a new ${tabNoun(statusRef.current?.terminal ?? 'none')}`);
           else {
             await navigator.clipboard.writeText(r.command).catch(() => undefined);
             toast('Resume command copied. Paste it in a terminal.');
@@ -214,7 +219,11 @@ export function App() {
   }
 
   const allCards = board?.cards ?? [];
-  const cards = !label ? allCards : allCards.filter((c) => (label === '-' ? !c.label?.name : c.label?.name === label));
+  // A remembered agent that no longer has sessions would otherwise hide everything.
+  const agent = status && status.agents.length > 1 && status.agents.some((a) => a.kind === agentFilter) ? agentFilter : '';
+  const cards = allCards
+    .filter((c) => !agent || c.agentKind === agent)
+    .filter((c) => !label || (label === '-' ? !c.label?.name : c.label?.name === label));
   const needsYou = cards.filter((c) => c.column === 'needs_you').length;
 
   return (
@@ -262,6 +271,16 @@ export function App() {
               <option value="-">No label</option>
             </select>
           )}
+          {(view === 'board' || view === 'cleanup') && status && status.agents.length > 1 && (
+            <select aria-label="Agent" value={agent} onChange={(e) => setAgentFilter(e.target.value)} className="rounded border border-rule-strong bg-strip pl-2 py-1 text-[13px]">
+              <option value="">All agents</option>
+              {status.agents.map((a) => (
+                <option key={a.kind} value={a.kind}>
+                  {AGENT_LABEL[a.kind]} ({a.count})
+                </option>
+              ))}
+            </select>
+          )}
           {view === 'board' && (
             <label className="flex items-center gap-1.5 text-[13px] text-muted">
               <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
@@ -270,7 +289,7 @@ export function App() {
           )}
           <span className="flex-1" />
           {board && board.totals.tabs > 0 && (
-            <span className="hidden text-[13px] text-muted 2xl:inline" title="Memory used by open cmux tabs">
+            <span className="hidden text-[13px] text-muted 2xl:inline" title={`Memory used by open ${tabNoun(status?.terminal ?? 'none', true)}`}>
               {board.totals.tabs} tabs open, {bytes(board.totals.memoryBytes)}
             </span>
           )}
@@ -303,7 +322,7 @@ export function App() {
           {view === 'board' && <BoardView cards={cards} showArchived={showArchived} now={now} />}
           {view === 'today' && <Today version={version} status={status} />}
           {view === 'inbox' && <Inbox version={version} />}
-          {view === 'cleanup' && <Cleanup version={version} status={status} label={label} cards={cards} />}
+          {view === 'cleanup' && <Cleanup version={version} status={status} label={label} agent={agent} cards={cards} />}
           {view === 'tickets' && <Tickets version={version} status={status} onConfigure={() => setSettings(true)} />}
           {view === 'log' && <Log version={version} />}
           {view === 'digest' && <DigestView version={version} />}
@@ -315,7 +334,7 @@ export function App() {
       {starting && <StartModal status={status} onClose={() => setStarting(false)} />}
       {settings && status && <Settings status={status} onClose={() => setSettings(false)} onSaved={setStatus} />}
       {closePrompt && (
-        <Modal title="Close the cmux tab too?" onClose={() => void answerClosePrompt(false, false)}>
+        <Modal title={`Close the ${tabNoun(status?.terminal ?? 'none')} too?`} onClose={() => void answerClosePrompt(false, false)}>
           <p className="text-[13.5px]">
             “{closePrompt.card.title}” is done. Its tab {closePrompt.tab.ref} uses {bytes(closePrompt.tab.memoryBytes)}. You can resume the thread later from
             search.

@@ -8,6 +8,8 @@ export interface LiveSnapshot {
   tabs: Tab[];
   tabBySession: Map<string, Tab>;
   sessionByTab: Map<string, string>;
+  /** Tabs matched to a session only by guessing; good enough to show and jump to, never to close. */
+  guessedTabs: Set<string>;
   terminal: TerminalAdapter['name'];
   errors: string[];
   at: number;
@@ -17,6 +19,9 @@ export type AgentSource = () => Promise<AgentInfo[]>;
 
 export type LifecycleLookup = (sessionId: string) => { lifecycle: Lifecycle; note: string | null };
 
+/** Last resort for agents without a pid-to-session API: the session that tab is most likely running. */
+export type SessionGuess = (tab: Tab, taken: ReadonlySet<string>) => string | null;
+
 const BINDING_TTL_MS = 60_000;
 
 function emptySnapshot(terminal: TerminalAdapter['name']): LiveSnapshot {
@@ -25,6 +30,7 @@ function emptySnapshot(terminal: TerminalAdapter['name']): LiveSnapshot {
     tabs: [],
     tabBySession: new Map(),
     sessionByTab: new Map(),
+    guessedTabs: new Set(),
     terminal,
     errors: [],
     at: 0,
@@ -45,6 +51,7 @@ export class LiveState extends EventEmitter<{ change: [] }> {
     readonly terminal: TerminalAdapter,
     private readonly intervalMs: number,
     private readonly lookupLifecycle: LifecycleLookup,
+    private readonly guessSession: SessionGuess = () => null,
   ) {
     super();
     this.snapshot = emptySnapshot(terminal.name);
@@ -86,13 +93,15 @@ export class LiveState extends EventEmitter<{ change: [] }> {
     const agentsByPid = new Map(agents.filter((a) => a.pid !== null).map((a) => [a.pid!, a]));
     const tabBySession = new Map<string, Tab>();
     const sessionByTab = new Map<string, string>();
+    const guessedTabs = new Set<string>();
     const now = Date.now();
 
     // Tabs whose Claude process is matched by pid win over tabs matched only by a stored resume
     // binding, which can point at a session that has since moved to another tab.
     const byBinding: [Tab, string][] = [];
+    const unmatched: Tab[] = [];
     for (const tab of tabs) {
-      const byPid = tab.claudePid !== null ? agentsByPid.get(tab.claudePid)?.sessionId : undefined;
+      const byPid = tab.agentPid !== null ? agentsByPid.get(tab.agentPid)?.sessionId : undefined;
       if (byPid) {
         if (!tabBySession.has(byPid)) {
           tabBySession.set(byPid, tab);
@@ -100,26 +109,40 @@ export class LiveState extends EventEmitter<{ change: [] }> {
         }
         continue;
       }
+      // Other agents have no `claude agents`; a session named on their command line is next best.
+      // (A resumed Claude session may continue under a new id, so its command line is not trusted.)
+      if (tab.agentSessionHint && tab.agentKind !== null && tab.agentKind !== 'claude') {
+        byBinding.push([tab, tab.agentSessionHint]);
+        continue;
+      }
       const cached = this.bindings.get(tab.ref);
       let sessionId: string | null;
-      if (cached && cached.pid === tab.claudePid && now - cached.at < BINDING_TTL_MS) {
+      if (cached && cached.pid === tab.agentPid && now - cached.at < BINDING_TTL_MS) {
         sessionId = cached.sessionId;
       } else {
         sessionId = await this.terminal.sessionIdForTab(tab);
-        this.bindings.set(tab.ref, { pid: tab.claudePid, sessionId, at: now });
+        this.bindings.set(tab.ref, { pid: tab.agentPid, sessionId, at: now });
       }
       if (sessionId) byBinding.push([tab, sessionId]);
+      else if (tab.agentKind !== null && tab.agentKind !== 'claude') unmatched.push(tab);
     }
     for (const [tab, sessionId] of byBinding) {
       if (tabBySession.has(sessionId)) continue;
       tabBySession.set(sessionId, tab);
       sessionByTab.set(tab.ref, sessionId);
     }
+    for (const tab of unmatched) {
+      const sessionId = this.guessSession(tab, new Set(tabBySession.keys()));
+      if (!sessionId || tabBySession.has(sessionId)) continue;
+      tabBySession.set(sessionId, tab);
+      sessionByTab.set(tab.ref, sessionId);
+      guessedTabs.add(tab.ref);
+    }
     const liveRefs = new Set(tabs.map((t) => t.ref));
     for (const ref of this.bindings.keys()) if (!liveRefs.has(ref)) this.bindings.delete(ref);
     for (const ref of this.appliedBadges.keys()) if (!liveRefs.has(ref)) this.appliedBadges.delete(ref);
 
-    this.snapshot = { agents: agentsBySession, tabs, tabBySession, sessionByTab, terminal: this.terminal.name, errors, at: now };
+    this.snapshot = { agents: agentsBySession, tabs, tabBySession, sessionByTab, guessedTabs, terminal: this.terminal.name, errors, at: now };
     await this.syncBadges();
 
     const signature = JSON.stringify([

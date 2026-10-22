@@ -2,6 +2,8 @@ export type Lifecycle = 'active' | 'waiting_others' | 'done' | 'archived';
 export type LiveStatus = 'running' | 'needs_you' | 'idle';
 export type Column = LiveStatus | 'paused' | 'waiting_others' | 'done' | 'archived';
 export type LinkKind = 'pr' | 'issue' | 'ticket' | 'slack' | 'figma';
+export type AgentKind = 'claude' | 'codex' | 'pi' | 'copilot';
+export type TerminalName = 'cmux' | 'tmux' | 'kitty' | 'none';
 
 export interface LinkView {
   kind: LinkKind;
@@ -30,6 +32,7 @@ export interface TabInfo {
 
 export interface Card {
   id: string;
+  agentKind: AgentKind;
   title: string;
   cwd: string | null;
   project: string | null;
@@ -72,7 +75,8 @@ export interface Board {
 }
 
 export interface Status {
-  terminal: 'cmux' | 'none';
+  terminal: TerminalName;
+  agents: { kind: AgentKind; count: number }[];
   integrations: { github: boolean; jira: boolean; linear: boolean; slack: boolean };
   hooksInstalled: boolean;
   indexing: { running: boolean; done: number; total: number };

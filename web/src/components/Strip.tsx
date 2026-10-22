@@ -1,6 +1,6 @@
 import { useDraggable } from '@dnd-kit/react';
 import { useActions } from '../actions';
-import { COLUMN_COLOR, ago, bytes } from '../format';
+import { AGENT_LABEL, COLUMN_COLOR, ago, bytes } from '../format';
 import type { Card } from '../types';
 import { LabelChip, LinkChip } from './ui';
 
@@ -34,6 +34,7 @@ export function Strip({ card, arrived, now }: { card: Card; arrived: boolean; no
       </div>
 
       <div className="mt-0.5 flex min-w-0 items-baseline gap-1.5 text-[12px] text-muted">
+        {card.agentKind !== 'claude' && <span className="shrink-0 rounded-sm border border-rule px-1 text-[11px] text-ink">{AGENT_LABEL[card.agentKind]}</span>}
         {card.label?.name && <LabelChip name={card.label.name} guessed={card.label.source !== 'manual'} />}
         {card.projectName && <span className="shrink-0">{card.projectName}</span>}
         {card.branch && <span className="truncate font-mono text-[11px]">{card.branch}</span>}
@@ -65,9 +66,9 @@ export function Strip({ card, arrived, now }: { card: Card; arrived: boolean; no
 
       <div className="mt-1.5 flex items-center gap-2 text-[12px] text-muted">
         {card.tab ? (
-          <span title={`cmux ${card.tab.ref}`}>{bytes(card.tab.memoryBytes)}</span>
+          <span title={`Tab ${card.tab.ref}`}>{bytes(card.tab.memoryBytes)}</span>
         ) : (
-          !card.transcriptExists && <span title="Claude Code deleted this transcript">transcript expired</span>
+          !card.transcriptExists && <span title={`${AGENT_LABEL[card.agentKind]} no longer has this transcript`}>transcript expired</span>
         )}
         {card.live && card.lifecycle !== 'active' && (
           <span className="inline-flex items-center gap-1">

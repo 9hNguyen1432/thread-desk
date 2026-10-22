@@ -148,7 +148,7 @@ export function StartModal({
                 Cancel
               </Button>
               <Button tone="primary" disabled={busy || !cwd.trim() || !draft.prompt.trim()} onClick={() => void launch()}>
-                {busy ? 'Starting…' : status?.terminal === 'cmux' ? 'Start in cmux' : 'Prepare command'}
+                {busy ? 'Starting…' : status && status.terminal !== 'none' ? `Start in ${status.terminal}` : 'Prepare command'}
               </Button>
             </div>
           )}

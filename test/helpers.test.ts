@@ -60,18 +60,41 @@ describe('cmux parsing', () => {
       cwd: '/w/api',
       memoryBytes: 1310755936,
       cpuPercent: 2,
-      claudePid: 2157,
+      agentPid: 2157,
+      agentKind: 'claude',
+      agentStartedAt: null,
+      agentSessionHint: null,
       agentStatus: 'needs_you',
       closeBlock: null,
     });
-    expect(tabs[1]).toMatchObject({ claudePid: null, agentStatus: null, memoryBytes: 0, closeBlock: expect.stringMatching(/0 panes/) });
+    expect(tabs[1]).toMatchObject({ agentPid: null, agentStatus: null, memoryBytes: 0, closeBlock: expect.stringMatching(/0 panes/) });
   });
 
   it('finds Claude in the foreground when the sidebar tag is missing', () => {
     const ws = {
       panes: [{ surfaces: [{ type: 'terminal', foreground_pgids: [8715], processes: [{ pid: 700, name: '-zsh', children: [{ pid: 8715, name: '2.1.294', path: '/u/.local/share/claude/versions/2.1.294' }] }] }] }],
     };
-    expect(inspectWorkspace(ws)).toEqual({ claudePid: 8715, closeBlock: null });
+    expect(inspectWorkspace(ws)).toEqual({ agentPid: 8715, agentKind: 'claude', agentStartedAt: null, agentSessionHint: null, closeBlock: null });
+  });
+
+  it('recognizes node-based agents from their command line and reads a resumed session id', () => {
+    const ws = {
+      panes: [{ surfaces: [{ type: 'terminal', foreground_pgids: [900], processes: [{ pid: 1, name: 'zsh', children: [{ pid: 900, name: 'node', path: '/usr/local/bin/node' }] }] }] }],
+    };
+    const ps = (command: string) =>
+      new Map([[900, { pid: 900, ppid: 1, pgid: 900, tpgid: 900, rssBytes: 0, cpuPercent: 0, startedAt: 1000, command, name: 'node' }]]);
+    // Without a command line, a bare `node` is just another program.
+    expect(inspectWorkspace(ws).closeBlock).toBe('node is running in this tab');
+    expect(inspectWorkspace(ws, ps('node /u/.nvm/bin/codex resume 0199a213-81c0-7800-8aa1-bbab2a035a53'))).toEqual({
+      agentPid: 900,
+      agentKind: 'codex',
+      agentStartedAt: 1000,
+      agentSessionHint: '0199a213-81c0-7800-8aa1-bbab2a035a53',
+      closeBlock: null,
+    });
+    expect(inspectWorkspace(ws, ps('node /u/lib/node_modules/@mariozechner/pi-coding-agent/dist/cli.js')).agentKind).toBe('pi');
+    expect(inspectWorkspace(ws, ps('node /u/bin/copilot --resume=abc')).agentKind).toBe('copilot');
+    expect(inspectWorkspace(ws, ps('node server.js')).closeBlock).toBe('node is running in this tab');
   });
 
   it('blocks closing splits, browsers and other foreground programs', () => {

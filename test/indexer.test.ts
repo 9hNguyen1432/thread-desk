@@ -7,12 +7,13 @@ import { ticketRegex } from '../src/links.js';
 import { Searcher } from '../src/search.js';
 import { Store } from '../src/store.js';
 import { Indexer } from '../src/transcript/indexer.js';
+import { claudeSource } from '../src/transcript/sources.js';
 import type { LiveSnapshot } from '../src/live/state.js';
 
 const ID = '11111111-2222-4333-8444-555555555555';
 const NEXT = '66666666-7777-4888-9999-000000000000';
 
-const emptyLive: LiveSnapshot = { agents: new Map(), tabs: [], tabBySession: new Map(), sessionByTab: new Map(), terminal: 'none', errors: [], at: 0 };
+const emptyLive: LiveSnapshot = { agents: new Map(), tabs: [], tabBySession: new Map(), sessionByTab: new Map(), guessedTabs: new Set(), terminal: 'none', errors: [], at: 0 };
 
 function line(obj: Record<string, unknown>): string {
   return JSON.stringify(obj) + '\n';
@@ -42,7 +43,7 @@ describe('Indexer', () => {
     db = openDb(join(root, 'data'));
     file = join(dir, `${ID}.jsonl`);
     reopened = [];
-    indexer = new Indexer(db, claudeDir, ['CN'], {
+    indexer = new Indexer(db, [claudeSource(claudeDir)], ['CN'], {
       sessionsChanged: () => undefined,
       sessionsReopened: (ids) => reopened.push(...ids),
     });

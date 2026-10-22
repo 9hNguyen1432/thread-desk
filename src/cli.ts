@@ -4,17 +4,19 @@ import { parseArgs } from 'node:util';
 import { serve } from '@hono/node-server';
 import open from 'open';
 import { ThreadDesk } from './app.js';
-import { dataDir as resolveDataDir, ensureDataDir, loadConfig, readOrCreateSecret, type Config } from './config.js';
+import { TERMINAL_CHOICES, dataDir as resolveDataDir, ensureDataDir, loadConfig, readOrCreateSecret, type Config, type TerminalChoice } from './config.js';
 import { openDb } from './db.js';
 import { DemoAdapter, createDemoClaudeDir, seedDemoTodos } from './demo.js';
 import { hooksInstalled, installHooks, uninstallHooks } from './hooks.js';
 import { createServer } from './server.js';
 import { CmuxAdapter } from './terminal/cmux.js';
+import { KittyAdapter, defaultKittenBin } from './terminal/kitty.js';
 import { NoneAdapter } from './terminal/none.js';
+import { TmuxAdapter } from './terminal/tmux.js';
 import type { TerminalAdapter } from './terminal/types.js';
 import type { AgentSource } from './live/state.js';
 
-const HELP = `thread-desk: a local Kanban board for your Claude Code sessions
+const HELP = `thread-desk: a local Kanban board for your AI coding sessions (Claude Code, Codex, Pi, Copilot)
 
 Usage:
   thread-desk [options]            start the board (default)
@@ -28,15 +30,30 @@ Options:
   --no-open           do not open the browser
   --data-dir <path>   where the index and settings live (default ~/.thread-desk)
   --claude-dir <path> Claude Code home (default ~/.claude)
-  --terminal <name>   auto | cmux | none
+  --terminal <name>   auto | cmux | tmux | kitty | none
   --demo              run against generated sample sessions
   -h, --help
 `;
 
+/**
+ * An explicit choice wins. Otherwise the terminal Thread Desk was started in, then whichever of
+ * cmux, tmux and kitty answers.
+ */
 async function pickTerminal(config: Config): Promise<TerminalAdapter> {
-  if (config.terminal === 'none') return new NoneAdapter();
-  if (config.terminal === 'cmux' || (await CmuxAdapter.detect(config.cmuxBin))) return new CmuxAdapter(config.cmuxBin);
-  return new NoneAdapter();
+  const kitten = defaultKittenBin(config.kittyBin);
+  const make: Record<Exclude<TerminalChoice, 'auto'>, () => TerminalAdapter> = {
+    cmux: () => new CmuxAdapter(config.cmuxBin),
+    tmux: () => new TmuxAdapter(config.tmuxBin),
+    kitty: () => new KittyAdapter(kitten),
+    none: () => new NoneAdapter(),
+  };
+  if (config.terminal !== 'auto') return make[config.terminal]();
+  if (process.env.TMUX) return make.tmux();
+  if (process.env.KITTY_WINDOW_ID) return make.kitty();
+  if (process.env.CMUX_WORKSPACE_ID || (await CmuxAdapter.detect(config.cmuxBin))) return make.cmux();
+  if (await TmuxAdapter.detect(config.tmuxBin)) return make.tmux();
+  if (await KittyAdapter.detect(kitten)) return make.kitty();
+  return make.none();
 }
 
 async function main(): Promise<void> {
@@ -63,7 +80,10 @@ async function main(): Promise<void> {
   const config = loadConfig(dir);
   if (values.port) config.port = Number(values.port);
   if (values['claude-dir']) config.claudeDir = values['claude-dir'];
-  if (values.terminal === 'auto' || values.terminal === 'cmux' || values.terminal === 'none') config.terminal = values.terminal;
+  if (values.terminal !== undefined) {
+    if (!(TERMINAL_CHOICES as readonly string[]).includes(values.terminal)) throw new Error(`Unknown terminal: ${values.terminal}`);
+    config.terminal = values.terminal as TerminalChoice;
+  }
   if (!Number.isInteger(config.port) || config.port <= 0 || config.port > 65535) throw new Error(`Invalid port: ${values.port}`);
 
   const token = readOrCreateSecret(dir, 'token');
@@ -94,6 +114,8 @@ async function main(): Promise<void> {
   if (values.demo) {
     const demo = createDemoClaudeDir(dir);
     config.claudeDir = demo.claudeDir;
+    // Sample data only: never read the real sessions of other agents.
+    for (const agent of Object.values(config.agents)) agent.enabled = false;
     if (config.links.ticketKeys.length === 0) config.links.ticketKeys = ['DEMO'];
     const demoTerminal = new DemoAdapter(demo.tabs);
     terminal = demoTerminal;

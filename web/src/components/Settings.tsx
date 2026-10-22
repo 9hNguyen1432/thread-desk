@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useActions } from '../actions';
 import { api } from '../api';
+import { AGENT_LABEL } from '../format';
 import type { Status } from '../types';
 import { Button, Modal } from './ui';
 
@@ -113,7 +114,12 @@ export function Settings({ status, onClose, onSaved }: { status: Status; onClose
         </Row>
         <Row label="Connections">
           <ul className="flex flex-col gap-1">
-            <Check ok={status.terminal === 'cmux'}>{status.terminal === 'cmux' ? 'cmux: tabs, memory, jump and close' : 'cmux not found: resume by copying a command'}</Check>
+            <Check ok={status.terminal !== 'none'}>
+              {status.terminal === 'none' ? 'No cmux, tmux or kitty found: resume by copying a command' : `${status.terminal}: tabs, memory, jump and close`}
+            </Check>
+            <Check ok>
+              Agents with sessions: {status.agents.length ? status.agents.map((a) => `${AGENT_LABEL[a.kind]} (${a.count})`).join(', ') : 'none yet'}
+            </Check>
             <Check ok={status.integrations.github}>GitHub via gh CLI {status.integrations.github ? '' : '(run gh auth login)'}</Check>
             <Check ok={status.integrations.jira}>Jira</Check>
             <Check ok={status.integrations.linear}>Linear (THREAD_DESK_LINEAR_KEY)</Check>

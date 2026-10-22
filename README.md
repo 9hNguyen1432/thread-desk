@@ -2,13 +2,13 @@
 
 [![npm](https://img.shields.io/npm/v/thread-desk)](https://www.npmjs.com/package/thread-desk) [![CI](https://github.com/9hNguyen1432/thread-desk/actions/workflows/ci.yml/badge.svg)](https://github.com/9hNguyen1432/thread-desk/actions/workflows/ci.yml) [![license](https://img.shields.io/npm/l/thread-desk)](https://github.com/9hNguyen1432/thread-desk/blob/main/LICENSE)
 
-**A mission-control board for AI coding agents running in [cmux](https://cmux.com).**
-Today it supports Claude Code; Codex and other agents are next.
+**A mission-control board for AI coding agents running in [cmux](https://cmux.com), tmux or kitty.**
+Works with Claude Code, Codex, Pi and GitHub Copilot CLI.
 
-If you run many AI coding sessions side by side, each in its own cmux tab, you know the feeling: thirty
-tabs, and you no longer remember which one is waiting for you, which one was about that ticket, which
-ones are finished, and which you can close to get your memory back. Thread Desk reads the transcripts the
-agent already keeps on your machine, asks cmux which tabs are alive and how much memory they use, and
+If you run many AI coding sessions side by side, each in its own tab, you know the feeling: thirty tabs,
+and you no longer remember which one is waiting for you, which one was about that ticket, which ones are
+finished, and which you can close to get your memory back. Thread Desk reads the transcripts your agents
+already keep on your machine, asks the terminal which tabs are alive and how much memory they use, and
 puts every thread on one Kanban board you can search, clean up and resume from.
 
 ![Thread Desk running inside cmux: a new thread shows up as Running, open threads become today's todos, ⌘K jumps to a ticket's tab, and marking a thread done closes its tab](https://raw.githubusercontent.com/9hNguyen1432/thread-desk/main/docs/demo.gif)
@@ -19,19 +19,22 @@ Everything runs on your machine at `http://127.0.0.1:4545`. Nothing is uploaded.
 
 | | Supported now | Notes |
 | --- | --- | --- |
-| **Agent** | Claude Code 2.x | Reads `~/.claude/projects`, live status from `claude agents --json` |
-| **Terminal** | cmux on macOS (full) | Tab status, memory per tab, jump, close, resume in a new tab, sidebar badges |
-| | Any other terminal (basic) | Board, status, search and summaries work; resume by copying the command |
-| **OS** | macOS (full), Linux (basic) | cmux is macOS-only, so on Linux you get the board, status and search without tab control. CI runs the tests and a demo smoke test on both |
+| **Agents** | Claude Code 2.x (full) | Reads `~/.claude/projects`; live *Running* / *Needs you* from `claude agents --json` |
+| | Codex CLI, Pi, GitHub Copilot CLI | Board, search, links, todos, jump, resume and close. They have no status API, so a card shows whether its tab is open rather than whether the agent is busy. Asking several threads at once needs Claude Code |
+| **Terminals** | cmux on macOS | Tabs, memory, jump, close, resume in a new tab, sidebar badges |
+| | tmux | Windows, memory, jump, close, resume in a new window; badges as the window option `@thread_desk` |
+| | kitty | Tabs, memory, jump, close, resume in a new tab; needs remote control turned on |
+| | Any other terminal | Board, status, search and summaries work; resume by copying the command |
+| **OS** | macOS, Linux | cmux is macOS-only; tmux and kitty give tab control on Linux too. CI runs the tests and a demo smoke test on both |
 | **Trackers** | GitHub (via `gh`), Jira Cloud, Linear | Status of PRs, issues and tickets linked to a thread |
 | **Chat** | Slack | Read a thread to start from it; post a reviewed update back |
 
 ## Quick start
 
-### 1. Install cmux
+### 1. Pick a terminal
 
-cmux is a free macOS terminal built for running AI coding agents in tabs. Thread Desk talks to it to see
-your tabs and close or open them for you.
+Thread Desk works best with **cmux**, a free macOS terminal built for running AI coding agents in tabs.
+It also drives **tmux** (any OS) and **kitty**; see [Other terminals](#other-terminals).
 
 - Download: [cmux-macos.dmg](https://github.com/manaflow-ai/cmux/releases/latest/download/cmux-macos.dmg),
   open it and drag cmux to Applications, or
@@ -44,19 +47,22 @@ your tabs and close or open them for you.
 
 More at [cmux.com](https://cmux.com) and [github.com/manaflow-ai/cmux](https://github.com/manaflow-ai/cmux).
 
-### 2. Install Claude Code
+### 2. Use your agents as usual
 
-Follow the [Claude Code docs](https://code.claude.com/docs), then run `claude` in a few cmux tabs as you
-normally would. Thread Desk also lists sessions you ran before installing it.
+Run [Claude Code](https://code.claude.com/docs), [Codex](https://github.com/openai/codex),
+[Pi](https://github.com/badlogic/pi-mono) or [Copilot CLI](https://github.com/github/copilot-cli) in a
+few tabs as you normally would. Thread Desk also lists sessions you ran before installing it.
 
-### 3. Start Thread Desk from a cmux tab
+### 3. Start Thread Desk from a terminal tab
 
 ```sh
-npx thread-desk
+npm i -g thread-desk
+thread-desk
 ```
 
-It prints a link and opens the board in your browser. Start it **inside a cmux tab**: by default cmux only
-accepts control from programs running inside it (see [Troubleshooting](#troubleshooting)).
+It prints a link and opens the board in your browser. Start it **inside a cmux tab** (or tmux, or kitty):
+by default cmux only accepts control from programs running inside it (see [Troubleshooting](#troubleshooting)).
+`npx thread-desk` works too, without installing.
 
 To run from source instead:
 
@@ -119,26 +125,41 @@ Want to look around first? `npx thread-desk --demo` shows sample threads without
   Jira ticket or Slack thread after reviewing it.
 - **AI summaries (opt-in).** A four-line recap per thread: goal, done, next, blocker.
 
+## Other terminals
+
+Thread Desk uses the terminal it was started in; `--terminal cmux|tmux|kitty|none` picks one explicitly.
+
+- **tmux:** each window is a tab. Closing works on single-pane windows. Badges are stored in the window
+  option `@thread_desk`; show them by adding `#{@thread_desk}` to `window-status-format`.
+- **kitty:** each tab is a tab. Turn on remote control in `kitty.conf` with `allow_remote_control yes`.
+  To start Thread Desk outside kitty, also set `listen_on unix:/tmp/kitty` and export
+  `KITTY_LISTEN_ON=unix:/tmp/kitty`. kitty has no status field, so badges are skipped.
+
 ## Requirements
 
-- macOS with cmux for the full experience (any OS for the basic board)
+- macOS with cmux, or tmux or kitty on any OS, for tab control (any OS for the basic board)
 - Node.js 22 or newer
-- Claude Code 2.x
+- At least one of Claude Code 2.x, Codex CLI, Pi or GitHub Copilot CLI
 - Optional: the GitHub CLI for PR and issue status
 
 ## How it works
 
 | Data | Source |
 | --- | --- |
-| Threads, titles, branches, messages | `~/.claude/projects/*/*.jsonl`, read incrementally into SQLite with full-text search |
+| Claude Code threads | `~/.claude/projects/*/*.jsonl`, read incrementally into SQLite with full-text search |
+| Codex threads | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, including compressed `.jsonl.zst` (`$CODEX_HOME` respected) |
+| Pi threads | `~/.pi/agent/sessions/*/*.jsonl` (`$PI_CODING_AGENT_DIR` respected) |
+| Copilot CLI threads | `~/.copilot/session-store.db`, opened read-only |
 | Live status | `claude agents --json`, the cmux sidebar status, and (optional) Claude Code hooks |
-| Tabs and memory | `cmux top`, `cmux list-workspaces`, `cmux surface resume show` |
+| Tabs and memory | cmux: `cmux top`, `cmux list-workspaces`, `cmux surface resume show`; tmux: `tmux list-panes`; kitty: `kitten @ ls`; plus `ps` for command lines and memory |
 | PR and issue status | `gh pr view`, `gh issue view` |
 | Ticket status | Jira Cloud REST or Linear GraphQL, with credentials from environment variables |
 
-The transcript format is internal to Claude Code and can change between releases. Thread Desk reads it
+Transcript formats are internal to each agent and can change between releases. Thread Desk reads them
 defensively and ignores anything it does not recognize; status that matters comes from the supported
-`claude agents` command.
+`claude agents` command. For other agents, Thread Desk tells which session a tab runs from the session id
+on its command line (`codex resume <id>` and the like), the cmux resume record, or else the newest session
+of that agent in the tab's folder since the process started.
 
 Claude Code deletes transcripts after `cleanupPeriodDays` (30 by default). Thread Desk keeps its own
 index, so old threads stay searchable, but they can only be resumed while the transcript exists. Raise
@@ -169,7 +190,10 @@ Settings dialog.
 | `links.ticketKeys` | `[]` | Ticket prefixes such as `["CN", "OPS"]`; Settings suggests the ones it sees |
 | `onDone` | `"ask"` | When a thread is marked done: `ask`, `close` the tab, or `keep` it |
 | `cleanup.idleHours` | `24` | Suggest closing tabs idle this long (0 turns it off) |
-| `resumeCommand` | `claude --resume {sessionId}` | Command used to resume, e.g. add `--permission-mode` |
+| `resumeCommand` | `claude --resume {sessionId}` | Command used to resume Claude Code threads, e.g. add `--permission-mode` |
+| `agents.codex`, `agents.pi`, `agents.copilot` | enabled | `enabled`, `home` (empty means the default folder) and `resumeCommand` for each agent |
+| `terminal` | `"auto"` | `auto`, `cmux`, `tmux`, `kitty` or `none` |
+| `tmuxBin`, `kittyBin` | `tmux`, `kitten` | Paths to the tmux and kitten binaries |
 | `recap.enabled` | `false` | AI summaries via `claude -p --model haiku` (no tools, no hooks, no saved session) |
 | `trackers.jira.site` | `""` | e.g. `yourteam.atlassian.net` |
 | `trackers.jira.keys` / `trackers.linear.keys` | `[]` | Which prefixes belong to which tracker |
@@ -199,15 +223,17 @@ Credentials are read from the environment and never written to disk:
 - Write requests must be JSON from the board's own origin, so other web pages cannot trigger them.
 - Commands run without a shell and with validated arguments.
 - Closing fails safe: a tab is only closed when it holds a single terminal whose foreground program is an
-  idle Claude session or an idle shell, and live status is current. Splits, dev servers, editors, busy
-  sessions and sessions waiting on a permission prompt are never closed.
+  idle agent session or an idle shell, and live status is current. Splits, dev servers, editors, busy
+  sessions and sessions waiting on a permission prompt are never closed. Codex, Pi and Copilot report no
+  busy state, so their tabs are only offered once the transcript has been quiet for 10 minutes and the
+  tab is barely using CPU.
 - No telemetry. The only network calls are the integrations you configure.
 - Data lives in `~/.thread-desk` (index, settings, access key). Delete the folder to remove everything.
 
 ## Commands
 
 ```text
-thread-desk [--port 4545] [--no-open] [--data-dir path] [--claude-dir path] [--terminal auto|cmux|none]
+thread-desk [--port 4545] [--no-open] [--data-dir path] [--claude-dir path] [--terminal auto|cmux|tmux|kitty|none]
 thread-desk --demo        # sample data, no access to your real sessions
 thread-desk url           # print the board link
 thread-desk hooks install | uninstall | status
@@ -220,10 +246,19 @@ cmux. Run `thread-desk` from a cmux tab, or set a socket password in cmux settin
 `CMUX_SOCKET_PASSWORD` before starting Thread Desk.
 
 **A tab is never offered for closing.** The thread's details show why: it has splits or several tabs,
-another program is in the foreground, or Claude's state is unknown. Close those in cmux yourself.
+another program is in the foreground, or the agent may still be busy. Close those in the terminal yourself.
 
-**A thread shows "transcript expired".** Claude Code deleted it (see `cleanupPeriodDays`). It remains
-searchable but cannot be resumed.
+**"kitty refused remote control."** Add `allow_remote_control yes` to `kitty.conf` and restart kitty. When
+Thread Desk runs outside kitty, also set `listen_on` and export `KITTY_LISTEN_ON` (see
+[Other terminals](#other-terminals)).
+
+**A Codex, Pi or Copilot tab is not linked to its thread.** Thread Desk matches it by the session id on
+the command line or by the newest session in the same folder. Two fresh sessions of the same agent in one
+folder can be told apart only after each has written its first message. A tab matched only by that
+guess can be shown and jumped to, but Thread Desk will not close it.
+
+**A thread shows "transcript expired".** The agent deleted it (for Claude Code, see `cleanupPeriodDays`).
+It remains searchable but cannot be resumed.
 
 **Memory numbers look high.** They are each tab's physical footprint, the same number Activity Monitor
 shows, which includes compressed memory.
@@ -243,14 +278,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for adding terminal or tracker adapters.
 
 ## Roadmap
 
-Terminals already plug in through a small adapter interface. Agents will get the same treatment: today
-the session reader is written for Claude Code, and the first step for Codex is to split it into an
-agent adapter.
+Agents and terminals both plug in through small adapters (`src/transcript/sources.ts` and
+`src/terminal/`).
 
-- **More agents:** OpenAI Codex CLI first, then OpenCode and Gemini CLI. cmux already tracks these
-  agents in its sidebar, so status works the same way; what is missing is reading their session history.
-- **More terminals:** tmux, WezTerm, Ghostty and iTerm2 adapters for people not on cmux, which would also
-  bring tab control to Linux.
+- **More agents:** OpenCode and Gemini CLI next; live busy/waiting status for Codex, Pi and Copilot through
+  their hooks.
+- **More terminals:** WezTerm, Zellij, Ghostty and iTerm2.
 - **Smarter cleanup:** close tabs automatically when their PR merges, if you opt in.
 - **Team view:** share which threads touch which tickets with teammates, without sharing transcripts.
 

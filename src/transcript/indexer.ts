@@ -1,13 +1,19 @@
-import { open, readdir, stat } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { open, readFile, readdir, stat } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
 import chokidar, { type FSWatcher } from 'chokidar';
+import type { AgentKind } from '../agents.js';
 import type { DB } from '../db.js';
 import { SOURCE_PRIORITY, extractLinks, ticketPrefixCandidates, ticketRegex, type LinkRef, type LinkSource } from '../links.js';
-import { parseLine, type ParsedLine } from './parse.js';
-import { resolveProject } from './project.js';
+import type { ParsedLine } from './parse.js';
+import { resolveBranch, resolveProject } from './project.js';
+import type { PolledSource } from './copilot.js';
+import type { JsonlSource } from './sources.js';
+import { decompressZstd } from './zstd.js';
 
 export interface SessionRow {
   id: string;
+  agent: AgentKind;
   file: string;
   cwd: string | null;
   project: string | null;
@@ -35,7 +41,6 @@ export interface IndexerListener {
 }
 
 const CHUNK_BYTES = 4 * 1024 * 1024;
-const SESSION_FILE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$/i;
 
 export function normalizeForSearch(text: string): string {
   return text.replace(/đ/g, 'd').replace(/Đ/g, 'D');
@@ -44,9 +49,10 @@ export function normalizeForSearch(text: string): string {
 const PRIORITY_SQL = (col: string) =>
   `case ${col} ${Object.entries(SOURCE_PRIORITY).map(([s, p]) => `when '${s}' then ${p}`).join(' ')} else 0 end`;
 
-function emptySession(id: string, file: string): SessionRow {
+function emptySession(id: string, agent: AgentKind, file: string): SessionRow {
   return {
     id,
+    agent,
     file,
     cwd: null,
     project: null,
@@ -73,28 +79,27 @@ export class Indexer {
   private ticketRe: RegExp | null;
   private queue: Promise<void> = Promise.resolve();
   private timers = new Map<string, NodeJS.Timeout>();
-  private watcher: FSWatcher | null = null;
-  private readonly projectsDir: string;
+  private watchers: FSWatcher[] = [];
   private readonly stmts;
 
   constructor(
     private readonly db: DB,
-    claudeDir: string,
+    private readonly sources: JsonlSource[],
     ticketKeys: string[],
     private readonly listener: IndexerListener,
+    private readonly polled: PolledSource[] = [],
   ) {
-    this.projectsDir = join(claudeDir, 'projects');
     this.ticketRe = ticketRegex(ticketKeys);
     this.stmts = {
       getSession: db.prepare<[string], SessionRow>('select * from sessions where id = ?'),
       upsertSession: db.prepare(`
-        insert into sessions (id, file, cwd, project, git_branch, custom_title, ai_title, agent_name, first_prompt,
+        insert into sessions (id, agent, file, cwd, project, git_branch, custom_title, ai_title, agent_name, first_prompt,
           last_prompt, last_assistant, first_at, last_at, last_human_at, last_assistant_at, human_count, message_count,
           claude_version, continued_in, transcript_exists)
-        values (@id, @file, @cwd, @project, @git_branch, @custom_title, @ai_title, @agent_name, @first_prompt,
+        values (@id, @agent, @file, @cwd, @project, @git_branch, @custom_title, @ai_title, @agent_name, @first_prompt,
           @last_prompt, @last_assistant, @first_at, @last_at, @last_human_at, @last_assistant_at, @human_count,
           @message_count, @claude_version, @continued_in, @transcript_exists)
-        on conflict(id) do update set file = excluded.file, cwd = excluded.cwd, project = excluded.project,
+        on conflict(id) do update set agent = excluded.agent, file = excluded.file, cwd = excluded.cwd, project = excluded.project,
           git_branch = excluded.git_branch, custom_title = excluded.custom_title, ai_title = excluded.ai_title,
           agent_name = excluded.agent_name, first_prompt = excluded.first_prompt, last_prompt = excluded.last_prompt,
           last_assistant = excluded.last_assistant, first_at = excluded.first_at, last_at = excluded.last_at,
@@ -125,11 +130,16 @@ export class Indexer {
         update user_state set lifecycle = 'active', done_at = null, updated_at = ?
         where session_id = ? and lifecycle != 'active' and updated_at < ?`),
       markMissing: db.prepare('update sessions set transcript_exists = 0 where file = ?'),
+      markPresent: db.prepare('update sessions set transcript_exists = 1 where id = ? and file = ? and transcript_exists = 0'),
+      liveFilesOf: db.prepare<[string], { file: string; id: string }>(
+        'select file, id from sessions where agent = ? and transcript_exists = 1',
+      ),
       deleteSessionFts: db.prepare('delete from messages_fts where rowid in (select id from messages where session_id = ?)'),
       deleteSessionMessages: db.prepare('delete from messages where session_id = ?'),
       deleteSessionLinks: db.prepare('delete from links where session_id = ? and hidden = 0'),
       deleteSession: db.prepare('delete from sessions where id = ?'),
       setProject: db.prepare('update sessions set project = ? where id = ?'),
+      setBranch: db.prepare('update sessions set git_branch = ? where id = ?'),
     };
   }
 
@@ -152,22 +162,47 @@ export class Indexer {
     return this.enqueue(work);
   }
 
-  async listSessionFiles(): Promise<string[]> {
-    let dirs: string[];
-    try {
-      dirs = await readdir(this.projectsDir);
-    } catch {
-      return [];
+  /** The source a path belongs to, and the session it holds; null for anything else. */
+  private locate(path: string): { source: JsonlSource; id: string } | null {
+    for (const source of this.sources) {
+      const rel = relative(source.root, path);
+      if (!rel || rel.startsWith('..') || rel.split(sep).length !== source.depth + 1) continue;
+      const id = source.sessionId(path);
+      if (id) return { source, id };
     }
+    return null;
+  }
+
+  async listSessionFiles(): Promise<string[]> {
     const files: string[] = [];
-    for (const dir of dirs) {
-      let entries: string[];
-      try {
-        entries = await readdir(join(this.projectsDir, dir));
-      } catch {
-        continue;
+    for (const source of this.sources) {
+      let level = [source.root];
+      for (let d = 0; d < source.depth; d++) {
+        const next: string[] = [];
+        for (const dir of level) {
+          try {
+            for (const entry of await readdir(dir)) next.push(join(dir, entry));
+          } catch {
+            // Not a directory, or gone: nothing to list.
+          }
+        }
+        level = next;
       }
-      for (const entry of entries) if (SESSION_FILE_RE.test(entry)) files.push(join(this.projectsDir, dir, entry));
+      for (const dir of level) {
+        let entries: string[];
+        try {
+          entries = await readdir(dir);
+        } catch {
+          continue;
+        }
+        // A plain transcript hides a compressed sibling of the same session.
+        const names = new Set(entries);
+        for (const entry of entries) {
+          if (entry.endsWith('.zst') && names.has(entry.slice(0, -4))) continue;
+          const path = join(dir, entry);
+          if (this.locate(path)) files.push(path);
+        }
+      }
     }
     return files;
   }
@@ -175,12 +210,17 @@ export class Indexer {
   async scanAll(onProgress?: (done: number, total: number) => void): Promise<void> {
     const files = await this.listSessionFiles();
     const present = new Set(files);
-    const known = this.db.prepare<[], { file: string }>('select file from sessions where transcript_exists = 1').all();
-    for (const { file } of known) if (!present.has(file)) this.stmts.markMissing.run(file);
+    // Database-backed agents keep virtual file names; syncPolled checks those against their store.
+    const polledAgents = new Set(this.polled.map((p) => p.agent));
+    const known = this.db.prepare<[], { file: string; agent: AgentKind }>('select file, agent from sessions where transcript_exists = 1').all();
+    for (const { file, agent } of known) if (!polledAgents.has(agent) && !present.has(file)) this.stmts.markMissing.run(file);
     let done = 0;
     for (const file of files) {
       await this.enqueue(() => this.syncFile(file)).catch((e: Error) => this.recordError(file, e));
       onProgress?.(++done, files.length);
+    }
+    for (const source of this.polled) {
+      await this.enqueue(() => this.syncPolled(source)).catch((e: Error) => this.recordError(source.agent, e));
     }
   }
 
@@ -193,13 +233,36 @@ export class Indexer {
   }
 
   watch(): void {
-    this.watcher = chokidar.watch(this.projectsDir, {
+    for (const source of this.sources) {
+      // chokidar cannot watch a directory that does not exist yet; such agents are picked up on restart.
+      if (!existsSync(source.root)) continue;
+      this.watchers.push(this.watchSource(source));
+    }
+    for (const source of this.polled) {
+      const watcher = chokidar.watch(source.watchFiles, { ignoreInitial: true });
+      const schedule = () => {
+        clearTimeout(this.timers.get(source.agent));
+        this.timers.set(
+          source.agent,
+          setTimeout(() => {
+            this.timers.delete(source.agent);
+            void this.enqueue(() => this.syncPolled(source)).catch((e: Error) => this.recordError(source.agent, e));
+          }, 500),
+        );
+      };
+      watcher.on('add', schedule).on('change', schedule);
+      this.watchers.push(watcher);
+    }
+  }
+
+  private watchSource(source: JsonlSource): FSWatcher {
+    const watcher = chokidar.watch(source.root, {
       ignoreInitial: true,
-      depth: 1,
-      ignored: (path, stats) => Boolean(stats?.isFile() && !SESSION_FILE_RE.test(basename(path))),
+      depth: source.depth,
+      ignored: (path, stats) => Boolean(stats?.isFile() && !this.locate(path)),
     });
     const schedule = (path: string) => {
-      if (!SESSION_FILE_RE.test(basename(path))) return;
+      if (!this.locate(path)) return;
       clearTimeout(this.timers.get(path));
       this.timers.set(
         path,
@@ -209,21 +272,67 @@ export class Indexer {
         }, 300),
       );
     };
-    this.watcher.on('add', schedule).on('change', schedule);
-    this.watcher.on('unlink', (path) => {
+    watcher.on('add', schedule).on('change', schedule);
+    watcher.on('unlink', (path) => {
+      const found = this.locate(path);
+      if (!found) return;
       this.stmts.markMissing.run(path);
-      const id = basename(path, '.jsonl');
-      this.listener.sessionsChanged([id]);
+      this.listener.sessionsChanged([found.id]);
+      // Codex replaces a cold transcript with a compressed copy that the listing hid until now.
+      if (existsSync(`${path}.zst`)) schedule(`${path}.zst`);
     });
+    return watcher;
   }
 
   async close(): Promise<void> {
     for (const t of this.timers.values()) clearTimeout(t);
-    await this.watcher?.close();
+    await Promise.all(this.watchers.map((w) => w.close()));
+    for (const source of this.polled) source.close();
+  }
+
+  /** Database-backed sessions get a virtual file name so the rest of the index treats them alike. */
+  private async syncPolled(source: PolledSource): Promise<void> {
+    this.errors.delete(source.agent);
+    const listed = source.list();
+    const seen = new Set<string>();
+    for (const { id, stamp } of listed) {
+      const key = `${source.agent}:${id}`;
+      seen.add(key);
+      const prev = this.stmts.getFile.get(key);
+      if (prev && prev.mtime === stamp) {
+        if (this.stmts.markPresent.run(id, key).changes > 0) this.listener.sessionsChanged([id]);
+        continue;
+      }
+      let from = prev?.offset ?? 0;
+      const existing = this.stmts.getSession.get(id);
+      if (!prev && existing) {
+        this.db.transaction(() => this.resetSession(id))();
+        from = 0;
+      }
+      const session = this.stmts.getSession.get(id) ?? emptySession(id, source.agent, key);
+      session.agent = source.agent;
+      session.file = key;
+      session.transcript_exists = 1;
+      const cwdBefore = session.cwd;
+      const humanBefore = session.last_human_at;
+      const { lines, next } = source.read(id, from);
+      this.db.transaction(() => {
+        for (const line of lines) this.apply(session, line);
+        this.applyDerivedLinks(session);
+        this.stmts.upsertSession.run(session);
+        this.stmts.upsertFile.run(key, id, next, 0, stamp);
+      })();
+      await this.afterSync(session, cwdBefore, humanBefore);
+    }
+    for (const row of this.stmts.liveFilesOf.all(source.agent)) {
+      if (seen.has(row.file)) continue;
+      this.stmts.markMissing.run(row.file);
+      this.listener.sessionsChanged([row.id]);
+    }
   }
 
   syncPath(path: string): Promise<void> {
-    if (!SESSION_FILE_RE.test(basename(path))) return Promise.resolve();
+    if (!this.locate(path)) return Promise.resolve();
     return this.enqueue(() => this.syncFile(path));
   }
 
@@ -236,6 +345,9 @@ export class Indexer {
 
   private async syncFile(path: string): Promise<void> {
     this.errors.delete(path);
+    const found = this.locate(path);
+    if (!found) return;
+    const { source, id } = found;
     let info;
     try {
       info = await stat(path);
@@ -243,20 +355,44 @@ export class Indexer {
       this.stmts.markMissing.run(path);
       return;
     }
-    const id = basename(path, '.jsonl');
     const prev = this.stmts.getFile.get(path);
+    if (prev && info.size === prev.size && Math.trunc(info.mtimeMs) === prev.mtime && prev.offset === info.size) {
+      // Unchanged, but it may have been marked missing while its agent was turned off.
+      if (this.stmts.markPresent.run(id, path).changes > 0) this.listener.sessionsChanged([id]);
+      return;
+    }
     let offset = prev?.offset ?? 0;
-    if (prev && info.size < prev.offset) {
+    const existing = this.stmts.getSession.get(id);
+    // A shorter file was rewritten, a compressed file can only be read whole, and a session that
+    // moved to another file (Codex compressing a cold transcript) would otherwise be read twice.
+    const compressed = path.endsWith('.zst');
+    if ((prev && info.size < prev.offset) || (prev && compressed) || (!prev && existing && existing.file !== path)) {
       this.db.transaction(() => this.resetSession(id))();
       offset = 0;
     }
-    if (prev && info.size === prev.size && Math.trunc(info.mtimeMs) === prev.mtime && offset === info.size) return;
 
-    const session = this.stmts.getSession.get(id) ?? emptySession(id, path);
+    const session = this.stmts.getSession.get(id) ?? emptySession(id, source.agent, path);
+    session.agent = source.agent;
     session.file = path;
     session.transcript_exists = 1;
     const cwdBefore = session.cwd;
     const humanBefore = session.last_human_at;
+
+    if (compressed) {
+      const text = decompressZstd(await readFile(path)).toString('utf8');
+      this.db.transaction(() => {
+        for (const line of text.split('\n')) {
+          if (!line) continue;
+          const parsed = source.parseLine(line);
+          if (parsed) this.apply(session, parsed);
+        }
+        this.applyDerivedLinks(session);
+        this.stmts.upsertSession.run(session);
+        this.stmts.upsertFile.run(path, id, info.size, info.size, Math.trunc(info.mtimeMs));
+      })();
+      await this.afterSync(session, cwdBefore, humanBefore);
+      return;
+    }
 
     const handle = await open(path, 'r');
     try {
@@ -280,7 +416,7 @@ export class Indexer {
         this.db.transaction(() => {
           for (const line of complete.split('\n')) {
             if (!line) continue;
-            const parsed = parseLine(line);
+            const parsed = source.parseLine(line);
             if (parsed) this.apply(session, parsed);
           }
           this.stmts.upsertSession.run(session);
@@ -295,10 +431,19 @@ export class Indexer {
     } finally {
       await handle.close();
     }
+    await this.afterSync(session, cwdBefore, humanBefore);
+  }
 
+  private async afterSync(session: SessionRow, cwdBefore: string | null, humanBefore: number | null): Promise<void> {
+    const id = session.id;
     if (session.cwd && (session.cwd !== cwdBefore || !session.project)) {
       const project = await resolveProject(session.cwd);
       this.stmts.setProject.run(project, id);
+    }
+    // Pi does not record the branch; the checkout's current branch is the best available guess.
+    if (session.cwd && !session.git_branch && session.agent === 'pi') {
+      const branch = await resolveBranch(session.cwd);
+      if (branch) this.stmts.setBranch.run(branch, id);
     }
 
     if (session.last_human_at && session.last_human_at !== humanBefore) {
